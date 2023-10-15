@@ -1357,6 +1357,8 @@ dependencies = [
  "iced",
  "jellyfin-rpc",
  "retry",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 

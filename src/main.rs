@@ -63,6 +63,9 @@ pub async fn main() -> iced::Result {
     let (tx, rx_iced) = mpsc::channel();
     let (tx_iced, rx) = mpsc::channel();
     let (error_tx, error_rx_iced) = mpsc::channel();
+    let (config_tx, config_rx_iced) = mpsc::channel();
+
+    config_tx.send(config.clone()).unwrap();
 
     tokio::spawn(async move {
         let mut enabled: bool = true;
@@ -90,23 +93,34 @@ pub async fn main() -> iced::Result {
                     tx.send("Listening…".to_string()).unwrap();
                 }
             }
-            let sig = rx.try_recv().unwrap_or_else(|_| "".to_string());
 
-            if sig == "stop" {
-                enabled = false;
-                tx.send("Stopped".to_string()).unwrap();
-            } else if sig == "reload_config" {
-                match Config::load_config(config_path.clone()) {
-                    Ok(new_config) => {
-                        config = new_config;
-                        tx.send("Config reloaded!".to_string()).unwrap();
-                        error_tx.send("None".to_string()).unwrap();
-                        std::thread::sleep(std::time::Duration::from_secs(2));
+             // Handle the signal
+            match rx.try_recv() {
+                Ok(val) if val == "stop" => {
+                    enabled = false;
+                    tx.send("Stopped".to_string()).unwrap();
+                },
+                Ok(val) if val == "start" => (),
+                Ok(val) if val == "reload_config" => {
+                    match Config::load_config(config_path.clone()) {
+                        Ok(new_config) => {
+                            config = new_config;
+                            config_tx.send(config.clone()).unwrap();
+
+                            tx.send("Config reloaded!".to_string()).unwrap();
+                            error_tx.send("None".to_string()).unwrap();
+
+                            std::thread::sleep(std::time::Duration::from_secs(2));
+
+                            tx.send("Listening…".to_string()).unwrap();
+                        }
+                        Err(e) => error_tx
+                            .send(format!("Error reloading config: {:?}", e))
+                            .unwrap(),
                     }
-                    Err(e) => error_tx
-                        .send(format!("Error reloading config: {:?}", e))
-                        .unwrap(),
-                }
+                },
+                Ok(_) => error_tx.send("Unknown signal".to_string()).unwrap(),
+                Err(_) => ()
             }
 
             let mut content = Content::get(&config).await.unwrap();
@@ -255,13 +269,14 @@ pub async fn main() -> iced::Result {
 
     Gui::run(Settings {
         window: iced::window::Settings {
-            size: (250, 375),
+            size: (350, 500),
             resizable: false,
             ..Default::default()
         },
         flags: Data {
             rx: Some(rx_iced),
             error_rx: Some(error_rx_iced),
+            config_rx: Some(config_rx_iced),
             tx: Some(tx_iced),
         },
         ..Default::default()
