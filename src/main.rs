@@ -1,12 +1,18 @@
-use std::sync::mpsc;
-use jellyfin_rpc::{self, get_config_path, Config, jellyfin::{MediaType, Content, library_check}, imgur::Imgur, Button, core::rpc};
 use iced::{Application, Settings};
+use jellyfin_rpc::{
+    self,
+    core::rpc,
+    get_config_path,
+    imgur::Imgur,
+    jellyfin::{library_check, Content, MediaType},
+    Button, Config,
+};
+use std::sync::mpsc;
 mod window;
-use window::{Gui, Data};
 use clap::Parser;
-use discord_rich_presence::{activity, DiscordIpcClient, DiscordIpc};
+use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use retry::retry_with_index;
-use tokio;
+use window::{Data, Gui};
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
@@ -45,7 +51,7 @@ pub async fn main() -> iced::Result {
     let mut config = Config::load_config(config_path.clone()).unwrap_or_else(|e| {
         eprintln!(
             "{} {}",
-            format!(
+            format_args!(
                 "Config can't be loaded: {:?}.\nConfig file should be located at:",
                 e
             ),
@@ -56,6 +62,7 @@ pub async fn main() -> iced::Result {
 
     let (tx, rx_iced) = mpsc::channel();
     let (tx_iced, rx) = mpsc::channel();
+    let (error_tx, error_rx_iced) = mpsc::channel();
 
     tokio::spawn(async move {
         let mut enabled: bool = true;
@@ -68,14 +75,16 @@ pub async fn main() -> iced::Result {
                 .unwrap_or(String::from("1053747938519679018"))
                 .as_str(),
         )
-        .expect("Failed to create Discord RPC client, discord is down or the Client ID is invalid.");
-    
+        .expect(
+            "Failed to create Discord RPC client, discord is down or the Client ID is invalid.",
+        );
+
         // Start up the client connection, so that we can actually send and receive stuff
         tx.send("Connecting…".to_string()).unwrap();
         jellyfin_rpc::connect(&mut rich_presence_client);
         tx.send("Listening…".to_string()).unwrap();
         loop {
-            while enabled == false {
+            while !enabled {
                 if rx.try_recv().unwrap_or_else(|_| "".to_string()) == "start" {
                     enabled = true;
                     tx.send("Listening…".to_string()).unwrap();
@@ -91,15 +100,17 @@ pub async fn main() -> iced::Result {
                     Ok(new_config) => {
                         config = new_config;
                         tx.send("Config reloaded!".to_string()).unwrap();
+                        error_tx.send("None".to_string()).unwrap();
                         std::thread::sleep(std::time::Duration::from_secs(2));
-                    },
-                    Err(e) => tx.send(format!("Error reloading config: {:?}", e)).unwrap(),
+                    }
+                    Err(e) => error_tx
+                        .send(format!("Error reloading config: {:?}", e))
+                        .unwrap(),
                 }
             }
 
-
             let mut content = Content::get(&config).await.unwrap();
-            
+
             let mut blacklist_check = true;
             config
                 .clone()
@@ -134,22 +145,20 @@ pub async fn main() -> iced::Result {
                             &content.item_id,
                             library,
                         )
-                        .await.unwrap();
+                        .await
+                        .unwrap();
                     }
                 }
             }
-        
+
             if !content.media_type.is_none() && blacklist_check && enabled {
                 // Print what we're watching
                 if !connected {
                     // Set connected to true so that we don't try to connect again
                     connected = true;
                 }
-                tx.send(format!(
-                    "{}\n{}",
-                    content.details,
-                    content.state_message
-                )).unwrap();
+                tx.send(format!("{}\n{}", content.details, content.state_message))
+                    .unwrap();
                 if config
                     .clone()
                     .images
@@ -169,12 +178,14 @@ pub async fn main() -> iced::Result {
                     )
                     .await
                     .unwrap_or_else(|e| {
-                        eprintln!("{}", format!("Failed to use Imgur: {:?}", e));
+                        error_tx
+                            .send(format!("Failed to use Imgur: {:?}", e))
+                            .unwrap();
                         Imgur::default()
                     })
                     .url;
                 }
-        
+
                 // Set the activity
                 let mut rpcbuttons: Vec<activity::Button> = vec![];
                 let mut x = 0;
@@ -187,7 +198,7 @@ pub async fn main() -> iced::Result {
                     .discord
                     .and_then(|discord| discord.buttons)
                     .unwrap_or(vec![default_button.clone(), default_button]);
-        
+
                 // For loop to determine if external services are to be used or if there are custom buttons instead
                 for button in buttons.iter() {
                     if button.name == "dynamic"
@@ -203,7 +214,7 @@ pub async fn main() -> iced::Result {
                         rpcbuttons.push(activity::Button::new(&button.name, &button.url))
                     }
                 }
-        
+
                 rich_presence_client
                     .set_activity(rpc::setactivity(
                         &content.state_message,
@@ -211,28 +222,22 @@ pub async fn main() -> iced::Result {
                         content.endtime,
                         &content.image_url,
                         rpcbuttons,
-                        format!("Jellyfin-RPC-GUI v{}", VERSION.unwrap_or("0.0.0")).as_str(),
+                        format!("Jellyfin-RPC-Iced v{}", VERSION.unwrap_or("0.0.0")).as_str(),
                         &content.media_type,
                     ))
                     .unwrap_or_else(|err| {
-                        eprintln!("{}\nError: {}", "Failed to set activity", err);
-                        retry_with_index(
-                            retry::delay::Exponential::from_millis(1000),
-                            |_| {
-                                match rich_presence_client.reconnect() {
-                                    Ok(result) => retry::OperationResult::Ok(result),
-                                    Err(_) => {
-                                        retry::OperationResult::Retry(())
-                                    }
-                                }
-                            },
-                        )
+                        error_tx
+                            .send(format!("Failed to set activity\nError: {}", err))
+                            .unwrap();
+                        retry_with_index(retry::delay::Exponential::from_millis(1000), |_| {
+                            match rich_presence_client.reconnect() {
+                                Ok(result) => retry::OperationResult::Ok(result),
+                                Err(_) => retry::OperationResult::Retry(()),
+                            }
+                        })
                         .unwrap();
-                        tx.send(format!(
-                            "{}\n{}",
-                            content.details,
-                            content.state_message
-                        )).unwrap();
+                        tx.send(format!("{}\n{}", content.details, content.state_message))
+                            .unwrap();
                     });
             } else if connected {
                 // Disconnect from the client
@@ -241,17 +246,24 @@ pub async fn main() -> iced::Result {
                     .expect("Failed to clear activity");
                 // Set connected to false so that we dont try to disconnect again
                 connected = false;
-                println!(
-                    "{}\n{}\n{}",
-                    "------------------------------------------------------------------",
-                    "Cleared Rich Presence",
-                    "------------------------------------------------------------------"
-                );
+                tx.send("Listening…".to_string()).unwrap();
             }
-        
+
             std::thread::sleep(std::time::Duration::from_secs(3));
         }
     });
 
-    Gui::run(Settings { flags: Data { rx: Some(rx_iced), tx: Some(tx_iced) }, ..Default::default() } )
-} 
+    Gui::run(Settings {
+        window: iced::window::Settings {
+            size: (250, 375),
+            resizable: false,
+            ..Default::default()
+        },
+        flags: Data {
+            rx: Some(rx_iced),
+            error_rx: Some(error_rx_iced),
+            tx: Some(tx_iced),
+        },
+        ..Default::default()
+    })
+}
