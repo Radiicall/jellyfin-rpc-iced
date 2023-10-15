@@ -1,0 +1,25 @@
+[package]
+name = "jellyfin-rpc-iced"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+discord-rich-presence = "0.2"
+retry = "2.0"
+
+[dependencies.iced]
+version = "0.10"
+features = ["tokio", "default"]
+
+[dependencies.jellyfin-rpc]
+path = "./jellyfin-rpc"
+
+[dependencies.clap]
+features = ["derive"]
+version = "4.1"
+
+[dependencies.tokio]
+features = ["full"]
+version = "1"
