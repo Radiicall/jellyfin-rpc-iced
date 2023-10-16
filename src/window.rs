@@ -1,6 +1,5 @@
-use iced::widget::{button, container, text, column, Row, row, Column, checkbox};
-use iced::window::resize;
-use iced::{executor, Alignment, Length, Size};
+use iced::widget::{button, container, text, column, Row, Column, checkbox};
+use iced::{executor, Alignment, Length};
 use iced::{Application, Command, Element, Theme};
 use jellyfin_rpc::core::config::{Config, Jellyfin, Username, Blacklist};
 use jellyfin_rpc::jellyfin::MediaType;
@@ -34,6 +33,7 @@ pub struct Data {
     pub error_rx: Option<mpsc::Receiver<String>>,
     pub config_rx: Option<mpsc::Receiver<Config>>,
     pub tx: Option<mpsc::Sender<String>>,
+    pub config_tx: Option<mpsc::Sender<Config>>,
 }
 
 pub struct Gui {
@@ -41,11 +41,12 @@ pub struct Gui {
     error: String,
     config: Config,
     panel: Panel,
-    blacklist_media_types: BlacklistMediaTypes,
+    whitelist_media_types: WhitelistMediaTypes,
     rx: mpsc::Receiver<String>,
     error_rx: mpsc::Receiver<String>,
     config_rx: mpsc::Receiver<Config>,
     tx: mpsc::Sender<String>,
+    config_tx: mpsc::Sender<Config>,
 }
 
 impl Application for Gui {
@@ -72,11 +73,12 @@ impl Application for Gui {
                     images: None,
                 },
                 panel: Panel::Main,
-                blacklist_media_types: BlacklistMediaTypes::default(),
+                whitelist_media_types: WhitelistMediaTypes::default(),
                 rx: flags.rx.unwrap(),
                 error_rx: flags.error_rx.unwrap(),
                 config_rx: flags.config_rx.unwrap(),
                 tx: flags.tx.unwrap(),
+                config_tx: flags.config_tx.unwrap(),
             },
             Command::none(),
         )
@@ -100,12 +102,7 @@ impl Application for Gui {
                 match self.config_rx.try_recv() {
                     Ok(config) => {
                         self.config = config;
-                        self.config.jellyfin.blacklist.clone().and_then(|blacklist| {
-                            blacklist.media_types.and_then(|media_types| {
-                                self.blacklist_media_types.update(media_types);
-                                Some(())
-                            })
-                        });
+                        self.whitelist_media_types.update(&self.config);
                     },
                     Err(_) => ()
                 }
@@ -116,10 +113,18 @@ impl Application for Gui {
                 }
             }
             Message::Open(panel) =>  {
+                match panel {
+                    Panel::Main => {
+                        self.tx.send("reload_config".to_string()).unwrap()
+                    },
+                    _ => ()
+                }
+
                 self.panel = panel;
             },
             Message::ToggleMovies(val) => {
                 if val {
+                } else {
                     match self.config.jellyfin.blacklist.clone() {
                         Some(mut blacklist) => {
                             match blacklist.media_types {
@@ -140,27 +145,143 @@ impl Application for Gui {
                             });
                         }
                     }
-                    self.blacklist_media_types.movies = true;
-                } else {
-
+                    self.whitelist_media_types.movies = false;
                 }
             },
             Message::ToggleEpisodes(val) => {
-
+                if val {
+                } else {
+                    match self.config.jellyfin.blacklist.clone() {
+                        Some(mut blacklist) => {
+                            match blacklist.media_types {
+                                Some(mut media_types) => {
+                                    media_types.push(MediaType::Episode)
+                                },
+                                None => {
+                                    blacklist.media_types = Some(vec![MediaType::Episode])
+                                },
+                            }
+                        },
+                        None => {
+                            self.config.jellyfin.blacklist = Some(Blacklist {
+                                media_types: Some(
+                                    vec![MediaType::Episode]
+                                ),
+                                libraries: None,
+                            });
+                        }
+                    }
+                    self.whitelist_media_types.episodes = false;
+                }
             },
             Message::ToggleLiveTv(val) => {
-
+                if val {
+                } else {
+                    match self.config.jellyfin.blacklist.clone() {
+                        Some(mut blacklist) => {
+                            match blacklist.media_types {
+                                Some(mut media_types) => {
+                                    media_types.push(MediaType::LiveTv)
+                                },
+                                None => {
+                                    blacklist.media_types = Some(vec![MediaType::LiveTv])
+                                },
+                            }
+                        },
+                        None => {
+                            self.config.jellyfin.blacklist = Some(Blacklist {
+                                media_types: Some(
+                                    vec![MediaType::LiveTv]
+                                ),
+                                libraries: None,
+                            });
+                        }
+                    }
+                    self.whitelist_media_types.livetv = false;
+                }
             },
             Message::ToggleMusic(val) => {
-
+                if val {
+                } else {
+                    match self.config.jellyfin.blacklist.clone() {
+                        Some(mut blacklist) => {
+                            match blacklist.media_types {
+                                Some(mut media_types) => {
+                                    media_types.push(MediaType::Music)
+                                },
+                                None => {
+                                    blacklist.media_types = Some(vec![MediaType::Music])
+                                },
+                            }
+                        },
+                        None => {
+                            self.config.jellyfin.blacklist = Some(Blacklist {
+                                media_types: Some(
+                                    vec![MediaType::Music]
+                                ),
+                                libraries: None,
+                            });
+                        }
+                    }
+                    self.whitelist_media_types.music = false;
+                }
             },
             Message::ToggleBooks(val) => {
-
+                if val {
+                } else {
+                    match self.config.jellyfin.blacklist.clone() {
+                        Some(mut blacklist) => {
+                            match blacklist.media_types {
+                                Some(mut media_types) => {
+                                    media_types.push(MediaType::Book)
+                                },
+                                None => {
+                                    blacklist.media_types = Some(vec![MediaType::Book])
+                                },
+                            }
+                        },
+                        None => {
+                            self.config.jellyfin.blacklist = Some(Blacklist {
+                                media_types: Some(
+                                    vec![MediaType::Book]
+                                ),
+                                libraries: None,
+                            });
+                        }
+                    }
+                    self.whitelist_media_types.books = false;
+                }
             },
             Message::ToggleAudioBooks(val) => {
-
+                if val {
+                } else {
+                    match self.config.jellyfin.blacklist.clone() {
+                        Some(mut blacklist) => {
+                            match blacklist.media_types {
+                                Some(mut media_types) => {
+                                    media_types.push(MediaType::AudioBook)
+                                },
+                                None => {
+                                    blacklist.media_types = Some(vec![MediaType::AudioBook])
+                                },
+                            }
+                        },
+                        None => {
+                            self.config.jellyfin.blacklist = Some(Blacklist {
+                                media_types: Some(
+                                    vec![MediaType::AudioBook]
+                                ),
+                                libraries: None,
+                            });
+                        }
+                    }
+                    self.whitelist_media_types.audiobooks = false;
+                }
             },
-            Message::SaveSettings => self.tx.send("save_settings".to_string()).unwrap()
+            Message::SaveSettings => {
+                self.config_tx.send(self.config.clone()).unwrap();
+                self.tx.send("save_config".to_string()).unwrap()
+            }
         };
         Command::none()
     }
@@ -176,16 +297,16 @@ impl Application for Gui {
     fn view(&self) -> Element<Message> {
         let mut content = Column::new();
 
+        let status = Column::new()
+            .push(text("Status: ").size(30))
+            .push(text(self.status.clone()))
+            .align_items(Alignment::Center);
+
         if self.panel == Panel::Main {
             let start_stop = Row::new()
                 .push(button("Start").on_press(Message::Start).padding(10))
                 .push(button("Stop").on_press(Message::Stop).padding(10))
                 .spacing(10)
-                .align_items(Alignment::Center);
-
-            let status = Column::new()
-                .push(text("Status: ").size(30))
-                .push(text(self.status.clone()))
                 .align_items(Alignment::Center);
 
             let error = Column::new()
@@ -212,10 +333,30 @@ impl Application for Gui {
 
             let mediatypes = Column::new()
                 .push(
-                    checkbox("Movies", self.blacklist_media_types.movies, Message::ToggleMovies),
-                );
+                    checkbox("Movies", self.whitelist_media_types.movies, Message::ToggleMovies),
+                )
+                .push(
+                    checkbox("Episodes", self.whitelist_media_types.episodes, Message::ToggleEpisodes),
+                )
+                .push(
+                    checkbox("Television", self.whitelist_media_types.livetv, Message::ToggleLiveTv),
+                )
+                .push(
+                    checkbox("Music", self.whitelist_media_types.music, Message::ToggleMusic),
+                )
+                .push(
+                    checkbox("Books", self.whitelist_media_types.books, Message::ToggleBooks),
+                )
+                .push(
+                    checkbox("AudioBooks", self.whitelist_media_types.audiobooks, Message::ToggleAudioBooks),
+                )
+                .spacing(5);
 
-            content = column![back, reload_config, mediatypes]
+            let save = button("Save")
+                .on_press(Message::SaveSettings)
+                .padding(10);
+
+            content = column![back, reload_config, mediatypes, save, status]
             .spacing(10)
             .align_items(Alignment::Center);
         }
@@ -230,8 +371,7 @@ impl Application for Gui {
     }
 }
 
-#[derive(Default)]
-struct BlacklistMediaTypes {
+struct WhitelistMediaTypes {
     movies: bool,
     episodes: bool,
     livetv: bool,
@@ -240,19 +380,48 @@ struct BlacklistMediaTypes {
     audiobooks: bool,
 }
 
-impl BlacklistMediaTypes {
-    fn update(&mut self, media_types: Vec<MediaType>) {
-        for media_type in media_types {
-            match media_type {
-                MediaType::Episode => self.episodes = true,
-                MediaType::LiveTv => self.livetv = true,
-                MediaType::Movie => self.movies = true,
-                MediaType::Music => self.music = true,
-                MediaType::Book => self.books = true,
-                MediaType::AudioBook => self.audiobooks = true,
-                MediaType::None => (),
-            }
+impl Default for WhitelistMediaTypes {
+    fn default() -> Self {
+        Self {
+            movies: true,
+            episodes: true,
+            livetv: true,
+            music: true,
+            books: true,
+            audiobooks: true,
         }
-        self;
+    }
+}
+
+impl WhitelistMediaTypes {
+    fn update(&mut self, config: &Config) {
+        self.movies = true;
+        self.episodes = true;
+        self.livetv = true;
+        self.music = true;
+        self.books = true;
+        self.audiobooks = true;
+
+        match &config.jellyfin.blacklist {
+            Some(blacklist) => {
+                match &blacklist.media_types {
+                    Some(media_types) => {
+                        for media_type in media_types {
+                            match media_type {
+                                MediaType::Episode => self.episodes = false,
+                                MediaType::LiveTv => self.livetv = false,
+                                MediaType::Movie => self.movies = false,
+                                MediaType::Music => self.music = false,
+                                MediaType::Book => self.books = false,
+                                MediaType::AudioBook => self.audiobooks = false,
+                                MediaType::None => (),
+                            }
+                        }
+                    },
+                    None => ()
+                }
+            }
+            None => ()
+        }
     }
 }

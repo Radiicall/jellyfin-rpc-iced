@@ -64,6 +64,7 @@ pub async fn main() -> iced::Result {
     let (tx_iced, rx) = mpsc::channel();
     let (error_tx, error_rx_iced) = mpsc::channel();
     let (config_tx, config_rx_iced) = mpsc::channel();
+    let (config_tx_iced, config_rx) = mpsc::channel();
 
     config_tx.send(config.clone()).unwrap();
 
@@ -118,6 +119,16 @@ pub async fn main() -> iced::Result {
                             .send(format!("Error reloading config: {:?}", e))
                             .unwrap(),
                     }
+                }
+                Ok(val) if val == "save_config" => {
+                    config = config_rx.recv().unwrap();
+                    std::fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+                    tx.send("Settings saved!".to_string()).unwrap();
+
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+
+                    tx.send("Listening…".to_string()).unwrap();
                 },
                 Ok(_) => error_tx.send("Unknown signal".to_string()).unwrap(),
                 Err(_) => ()
@@ -278,6 +289,7 @@ pub async fn main() -> iced::Result {
             error_rx: Some(error_rx_iced),
             config_rx: Some(config_rx_iced),
             tx: Some(tx_iced),
+            config_tx: Some(config_tx_iced)
         },
         ..Default::default()
     })
