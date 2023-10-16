@@ -11,9 +11,9 @@ It's very much WIP but should work just fine.
 - [ ] Config editing
   - [x] Enable/Disable different media types
   - [ ] Enable/Disable libraries
-  - [ ] Change api key
+  - [x] Change api key
   - [ ] Add/Remove usernames
-  - [ ] Change URL
+  - [x] Change URL
   - [ ] Change music display
     - [ ] What to display
     - [ ] Separator

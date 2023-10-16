@@ -1,4 +1,4 @@
-use iced::widget::{button, container, text, column, Row, Column, checkbox};
+use iced::widget::{button, container, text, column, Row, Column, checkbox, text_input};
 use iced::{executor, Alignment, Length};
 use iced::{Application, Command, Element, Theme};
 use jellyfin_rpc::core::config::{Config, Jellyfin, Username, Blacklist};
@@ -12,6 +12,8 @@ pub enum Message {
     Start,
     Stop,
     Update,
+    UpdateUrl(String),
+    UpdateApiKey(String),
     ToggleMovies(bool),
     ToggleEpisodes(bool),
     ToggleLiveTv(bool),
@@ -122,6 +124,12 @@ impl Application for Gui {
 
                 self.panel = panel;
             },
+            Message::UpdateUrl(url) => {
+                self.config.jellyfin.url = url;
+            },
+            Message::UpdateApiKey(api_key) => {
+                self.config.jellyfin.api_key = api_key;
+            },
             Message::ToggleMovies(val) => {
                 media_type_toggle(val, self, MediaType::Movie)
             },
@@ -193,6 +201,28 @@ impl Application for Gui {
                 .on_press(Message::ReloadConfig)
                 .padding(10);
 
+            let url = Row::new()
+                .push(
+                    text("URL:")
+                )
+                .push(
+                    text_input("http://localhost:8096", &self.config.jellyfin.url)
+                        .on_input(Message::UpdateUrl)
+                )
+                .spacing(3)
+                .align_items(Alignment::Center);
+
+            let api_key = Row::new()
+                .push(
+                    text("Api Key:")
+                )
+                .push(
+                    text_input("aaaabbbbcccc111122223333", &self.config.jellyfin.api_key)
+                        .on_input(Message::UpdateApiKey)
+                )
+                .spacing(3)
+                .align_items(Alignment::Center);
+
             let mediatypes = Column::new()
                 .push(
                     checkbox("Movies", self.whitelist_media_types.movies, Message::ToggleMovies),
@@ -212,13 +242,14 @@ impl Application for Gui {
                 .push(
                     checkbox("AudioBooks", self.whitelist_media_types.audiobooks, Message::ToggleAudioBooks),
                 )
-                .spacing(5);
+                .spacing(6)
+                .align_items(Alignment::Start);
 
             let save = button("Save")
                 .on_press(Message::SaveSettings)
                 .padding(10);
 
-            content = column![back, reload_config, mediatypes, save, status]
+            content = column![back, reload_config, url, api_key, mediatypes, save, status]
             .spacing(10)
             .align_items(Alignment::Center);
         }
@@ -325,6 +356,4 @@ fn media_type_toggle(val:bool, gui: &mut Gui, media_type: MediaType) {
         }
         
     }
-
-    println!("{}", serde_json::to_string_pretty(&gui.config).unwrap());
 }
