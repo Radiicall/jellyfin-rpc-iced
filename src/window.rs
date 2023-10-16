@@ -123,160 +123,22 @@ impl Application for Gui {
                 self.panel = panel;
             },
             Message::ToggleMovies(val) => {
-                if val {
-                } else {
-                    match self.config.jellyfin.blacklist.clone() {
-                        Some(mut blacklist) => {
-                            match blacklist.media_types {
-                                Some(mut media_types) => {
-                                    media_types.push(MediaType::Movie)
-                                },
-                                None => {
-                                    blacklist.media_types = Some(vec![MediaType::Movie])
-                                },
-                            }
-                        },
-                        None => {
-                            self.config.jellyfin.blacklist = Some(Blacklist {
-                                media_types: Some(
-                                    vec![MediaType::Movie]
-                                ),
-                                libraries: None,
-                            });
-                        }
-                    }
-                    self.whitelist_media_types.movies = false;
-                }
+                media_type_toggle(val, self, MediaType::Movie)
             },
             Message::ToggleEpisodes(val) => {
-                if val {
-                } else {
-                    match self.config.jellyfin.blacklist.clone() {
-                        Some(mut blacklist) => {
-                            match blacklist.media_types {
-                                Some(mut media_types) => {
-                                    media_types.push(MediaType::Episode)
-                                },
-                                None => {
-                                    blacklist.media_types = Some(vec![MediaType::Episode])
-                                },
-                            }
-                        },
-                        None => {
-                            self.config.jellyfin.blacklist = Some(Blacklist {
-                                media_types: Some(
-                                    vec![MediaType::Episode]
-                                ),
-                                libraries: None,
-                            });
-                        }
-                    }
-                    self.whitelist_media_types.episodes = false;
-                }
+                media_type_toggle(val, self, MediaType::Episode)
             },
             Message::ToggleLiveTv(val) => {
-                if val {
-                } else {
-                    match self.config.jellyfin.blacklist.clone() {
-                        Some(mut blacklist) => {
-                            match blacklist.media_types {
-                                Some(mut media_types) => {
-                                    media_types.push(MediaType::LiveTv)
-                                },
-                                None => {
-                                    blacklist.media_types = Some(vec![MediaType::LiveTv])
-                                },
-                            }
-                        },
-                        None => {
-                            self.config.jellyfin.blacklist = Some(Blacklist {
-                                media_types: Some(
-                                    vec![MediaType::LiveTv]
-                                ),
-                                libraries: None,
-                            });
-                        }
-                    }
-                    self.whitelist_media_types.livetv = false;
-                }
+                media_type_toggle(val, self, MediaType::LiveTv)
             },
             Message::ToggleMusic(val) => {
-                if val {
-                } else {
-                    match self.config.jellyfin.blacklist.clone() {
-                        Some(mut blacklist) => {
-                            match blacklist.media_types {
-                                Some(mut media_types) => {
-                                    media_types.push(MediaType::Music)
-                                },
-                                None => {
-                                    blacklist.media_types = Some(vec![MediaType::Music])
-                                },
-                            }
-                        },
-                        None => {
-                            self.config.jellyfin.blacklist = Some(Blacklist {
-                                media_types: Some(
-                                    vec![MediaType::Music]
-                                ),
-                                libraries: None,
-                            });
-                        }
-                    }
-                    self.whitelist_media_types.music = false;
-                }
+                media_type_toggle(val, self, MediaType::Music)
             },
             Message::ToggleBooks(val) => {
-                if val {
-                } else {
-                    match self.config.jellyfin.blacklist.clone() {
-                        Some(mut blacklist) => {
-                            match blacklist.media_types {
-                                Some(mut media_types) => {
-                                    media_types.push(MediaType::Book)
-                                },
-                                None => {
-                                    blacklist.media_types = Some(vec![MediaType::Book])
-                                },
-                            }
-                        },
-                        None => {
-                            self.config.jellyfin.blacklist = Some(Blacklist {
-                                media_types: Some(
-                                    vec![MediaType::Book]
-                                ),
-                                libraries: None,
-                            });
-                        }
-                    }
-                    self.whitelist_media_types.books = false;
-                }
+                media_type_toggle(val, self, MediaType::Book)
             },
             Message::ToggleAudioBooks(val) => {
-                if val {
-                } else {
-                    match self.config.jellyfin.blacklist.clone() {
-                        Some(mut blacklist) => {
-                            match blacklist.media_types {
-                                Some(mut media_types) => {
-                                    media_types.push(MediaType::AudioBook)
-                                },
-                                None => {
-                                    blacklist.media_types = Some(vec![MediaType::AudioBook])
-                                },
-                            }
-                        },
-                        None => {
-                            self.config.jellyfin.blacklist = Some(Blacklist {
-                                media_types: Some(
-                                    vec![MediaType::AudioBook]
-                                ),
-                                libraries: None,
-                            });
-                        }
-                    }
-                    self.whitelist_media_types.audiobooks = false;
-                }
+                media_type_toggle(val, self, MediaType::AudioBook)
             },
             Message::SaveSettings => {
                 self.config_tx.send(self.config.clone()).unwrap();
@@ -424,4 +286,45 @@ impl WhitelistMediaTypes {
             None => ()
         }
     }
+}
+
+fn media_type_toggle(val:bool, gui: &mut Gui, media_type: MediaType) {
+    match media_type {
+        MediaType::Episode => gui.whitelist_media_types.episodes = val,
+        MediaType::LiveTv => gui.whitelist_media_types.livetv = val,
+        MediaType::Movie => gui.whitelist_media_types.movies = val,
+        MediaType::Music => gui.whitelist_media_types.music = val,
+        MediaType::Book => gui.whitelist_media_types.books = val,
+        MediaType::AudioBook => gui.whitelist_media_types.audiobooks = val,
+        MediaType::None => (),
+    }
+
+    if val {
+        gui.config.jellyfin.blacklist.as_mut().unwrap().media_types.as_mut().unwrap().retain(|mt| mt != &media_type);
+    } else {
+        match gui.config.jellyfin.blacklist.clone() {
+            Some(blacklist) => {
+                match blacklist.media_types {
+                    Some(mut media_types) => {
+                        media_types.push(media_type);
+                        gui.config.jellyfin.blacklist.as_mut().unwrap().media_types = Some(media_types);
+                    },
+                    None => {
+                        gui.config.jellyfin.blacklist.as_mut().unwrap().media_types = Some(vec![media_type])
+                    },
+                }
+            },
+            None => {
+                gui.config.jellyfin.blacklist = Some(Blacklist {
+                    media_types: Some(
+                        vec![media_type]
+                    ),
+                    libraries: None,
+                });
+            }
+        }
+        
+    }
+
+    println!("{}", serde_json::to_string_pretty(&gui.config).unwrap());
 }
