@@ -18,11 +18,11 @@ It's very much WIP but should work just fine.
     - [ ] What to display
     - [ ] Separator
   - [ ] Change buttons
+  - [ ] Change application ID
   - [ ] Enable/Disable imgur
     - [ ] Toggle
     - [ ] change client id
   - [ ] Enable/Disable images
-  - [ ] 
 - [ ] Have an initial setup (ex. login screen or if i cant figure that out then just fields to enter API key, username, etc.)
 - [ ] Tray Icon
 - [ ] Theme
