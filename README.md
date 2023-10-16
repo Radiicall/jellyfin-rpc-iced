@@ -12,3 +12,7 @@ It's very much WIP but should work just fine.
 - [ ] Have an initial setup (ex. login screen or if i cant figure that out then just fields to enter API key, username, etc.)
 - [ ] Tray Icon
 - [ ] Theme
+
+## Todo
+1. Create working GUI
+2. Refactor GUI because its horribly written
