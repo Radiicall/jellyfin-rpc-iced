@@ -9,6 +9,20 @@ It's very much WIP but should work just fine.
 - [x] Display Errors
 - [x] Config reloading
 - [ ] Config editing
+  - [x] Enable/Disable different media types
+  - [ ] Enable/Disable libraries
+  - [ ] Change api key
+  - [ ] Add/Remove usernames
+  - [ ] Change URL
+  - [ ] Change music display
+    - [ ] What to display
+    - [ ] Separator
+  - [ ] Change buttons
+  - [ ] Enable/Disable imgur
+    - [ ] Toggle
+    - [ ] change client id
+  - [ ] Enable/Disable images
+  - [ ] 
 - [ ] Have an initial setup (ex. login screen or if i cant figure that out then just fields to enter API key, username, etc.)
 - [ ] Tray Icon
 - [ ] Theme
