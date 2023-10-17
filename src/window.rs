@@ -76,9 +76,7 @@ impl Application for Gui {
         let (tx_server, rx_iced) = mpsc::channel();
         let (tx_iced, rx_server) = mpsc::channel();
 
-        let config = Config::load(&config_path).unwrap_or_else(|_| {
-            Config::default()
-        });
+        let config = Config::load(&config_path).unwrap_or_else(|_| Config::default());
 
         (
             Gui {
@@ -108,15 +106,11 @@ impl Application for Gui {
                 match Config::load(&self.config_path) {
                     Ok(config) => {
                         self.config = config;
-                        
-                    },
-                    Err(_) => self.config = Config::default()
+                    }
+                    Err(_) => self.config = Config::default(),
                 }
                 self.whitelist_media_types.update(&self.config);
-                match self.tx.send(Event::ReloadConfig) {
-                    Ok(()) => (),
-                    Err(_) => ()
-                };
+                let _ = self.tx.send(Event::ReloadConfig);
                 Command::none()
             }
             Message::Start => match self.tx.send(Event::Start) {
@@ -137,18 +131,15 @@ impl Application for Gui {
                 Command::none()
             }
             Message::Open(panel) => {
-                match panel {
-                    Panel::Main => {
-                        match Config::load(&self.config_path) {
-                            Ok(config) => {
-                                self.config = config;
-                            },
-                            Err(_) => self.config = Config::default()
-                        };
+                if panel == Panel::Main {
+                    match Config::load(&self.config_path) {
+                        Ok(config) => {
+                            self.config = config;
+                        }
+                        Err(_) => self.config = Config::default(),
+                    };
 
-                        self.whitelist_media_types.update(&self.config);
-                    }
-                    _ => (),
+                    self.whitelist_media_types.update(&self.config);
                 }
 
                 self.panel = panel;
@@ -187,17 +178,22 @@ impl Application for Gui {
                 Command::none()
             }
             Message::SaveSettings => {
-                /*
-                self.config_tx.send(self.config.clone()).unwrap();
-                self.tx.send("save_config".to_string()).unwrap()
-                */
+                match std::fs::write(
+                    &self.config_path,
+                    serde_json::to_string_pretty(&self.config).unwrap(),
+                ) {
+                    Ok(()) => {
+                        self.tx.send(Event::ReloadConfig).ok();
+                    }
+                    Err(err) => self.error = format!("{:?}", err),
+                }
                 Command::none()
             }
         }
     }
 
     fn subscription(&self) -> iced::Subscription<Self::Message> {
-        iced::time::every(std::time::Duration::from_secs(1)).map(|_| Message::Update)
+        iced::time::every(std::time::Duration::from_millis(500)).map(|_| Message::Update)
     }
 
     fn theme(&self) -> Self::Theme {
@@ -237,8 +233,7 @@ impl Application for Gui {
                 button("MediaTypes >")
                     .on_press(Message::Open(Panel::Settings(Setting::Whitelist)))
                     .padding(5),
-                button("Libraries >")
-                    .padding(5),
+                button("Libraries >").padding(5),
             ]
             .spacing(3)
             .align_items(Alignment::Center);
@@ -269,11 +264,9 @@ impl Application for Gui {
                 .spacing(10)
                 .align_items(Alignment::Center);
         } else if self.panel == Panel::Settings(Setting::Whitelist) {
-            let back = row![
-                button("< Back")
-                    .on_press(Message::Open(Panel::Settings(Setting::Main)))
-                    .padding(5),
-            ]
+            let back = row![button("< Back")
+                .on_press(Message::Open(Panel::Settings(Setting::Main)))
+                .padding(5),]
             .spacing(3)
             .align_items(Alignment::Center);
 

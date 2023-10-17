@@ -2,7 +2,7 @@ use crate::{Args, VERSION};
 use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use jellyfin_rpc::{
     self,
-    core::{rpc, config::Username},
+    core::{config::Username, rpc},
     imgur::Imgur,
     jellyfin::{library_check, Content, MediaType},
     Button, Config,
@@ -18,16 +18,19 @@ pub async fn run(
     rx: mpsc::Receiver<Event>,
 ) {
     tokio::spawn(async move {
-        if config.jellyfin.api_key == "" {
-            tx.send(Event::Error("Jellyfin API key not set".to_string())).unwrap();
+        if config.jellyfin.api_key.is_empty() {
+            tx.send(Event::Error("Jellyfin API key not set".to_string()))
+                .unwrap();
             return;
-        } else if config.jellyfin.url == "" {
-            tx.send(Event::Error("Jellyfin URL not set".to_string())).unwrap();
+        } else if config.jellyfin.url.is_empty() {
+            tx.send(Event::Error("Jellyfin URL not set".to_string()))
+                .unwrap();
             return;
         } else if config.jellyfin.username == Username::String("".to_string()) {
-            tx.send(Event::Error("Jellyfin Username not set".to_string())).unwrap();
+            tx.send(Event::Error("Jellyfin Username not set".to_string()))
+                .unwrap();
             return;
-        } 
+        }
 
         let mut enabled: bool = true;
         let mut connected: bool = false;
@@ -49,7 +52,7 @@ pub async fn run(
         tx.send(Event::Status("Listening…".to_string())).unwrap();
         loop {
             while !enabled {
-                if rx.try_recv().unwrap_or_else(|_| Event::Unknown) == Event::Start {
+                if rx.try_recv().unwrap_or(Event::Unknown) == Event::Start {
                     enabled = true;
                     tx.send(Event::Status("Listening…".to_string())).unwrap();
                 }
@@ -57,12 +60,12 @@ pub async fn run(
 
             // Handle the signal
             match rx.try_recv() {
-                Ok(val) if val == Event::Stop => {
+                Ok(Event::Stop) => {
                     enabled = false;
                     tx.send(Event::Status("Stopped".to_string())).unwrap();
                 }
-                Ok(val) if val == Event::Start => (),
-                Ok(val) if val == Event::ReloadConfig => match Config::load(&config_path) {
+                Ok(Event::Start) => (),
+                Ok(Event::ReloadConfig) => match Config::load(&config_path) {
                     Ok(new_config) => {
                         config = new_config;
 
