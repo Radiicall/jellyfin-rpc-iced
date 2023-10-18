@@ -1,4 +1,0 @@
-[submodule "jellyfin-rpc"]
-	path = jellyfin-rpc
-	url = https://github.com/radiicall/jellyfin-rpc
-	branch = gui

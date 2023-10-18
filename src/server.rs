@@ -3,8 +3,8 @@ use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use jellyfin_rpc::{
     self,
     core::{config::Username, rpc},
-    imgur::Imgur,
     jellyfin::{library_check, Content, MediaType},
+    services::imgur::Imgur,
     Button, Config,
 };
 use retry::retry_with_index;
