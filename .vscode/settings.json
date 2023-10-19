@@ -1,7 +1,5 @@
 {
   "rust-analyzer.linkedProjects": [
-    "./jellyfin-rpc/Cargo.toml",
-    "./jellyfin-rpc/jellyfin-rpc/Cargo.toml",
     "Cargo.toml"
   ]  
 }

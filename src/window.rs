@@ -7,6 +7,7 @@ use iced::{Application, Command, Element, Theme};
 use jellyfin_rpc::core::config::{get_config_path, Blacklist, Config};
 use jellyfin_rpc::jellyfin::MediaType;
 use std::sync::mpsc;
+//use reqwest;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -23,6 +24,7 @@ pub enum Message {
     ToggleMusic(bool),
     ToggleBooks(bool),
     ToggleAudioBooks(bool),
+    ToggleCustomButtons(bool),
     SaveSettings,
 }
 
@@ -36,6 +38,7 @@ pub enum Panel {
 pub enum Setting {
     Main,
     Whitelist,
+    Buttons,
 }
 
 pub struct Gui {
@@ -44,6 +47,7 @@ pub struct Gui {
     config: Config,
     panel: Panel,
     whitelist_media_types: WhitelistMediaTypes,
+    custom_buttons: bool,
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
     config_path: String,
@@ -78,6 +82,16 @@ impl Application for Gui {
 
         let config = Config::load(&config_path).unwrap_or_else(|_| Config::default());
 
+        let mut custom_buttons = false;
+
+        if config
+            .discord
+            .clone()
+            .is_some_and(|discord| discord.buttons.is_some())
+        {
+            custom_buttons = true;
+        }
+
         (
             Gui {
                 status: "Not running".to_string(),
@@ -87,11 +101,12 @@ impl Application for Gui {
                 whitelist_media_types: WhitelistMediaTypes::default(),
                 rx: rx_iced,
                 tx: tx_iced,
+                custom_buttons,
                 config_path: config_path.clone(),
             },
             Command::perform(
                 server::run(config_path, config, args, tx_server, rx_server),
-                |_| Message::Start,
+                |_| Message::Open(Panel::Main),
             ),
         )
     }
@@ -131,7 +146,9 @@ impl Application for Gui {
                 Command::none()
             }
             Message::Open(panel) => {
-                if panel == Panel::Main {
+                self.panel = panel;
+
+                if self.panel == Panel::Main {
                     match Config::load(&self.config_path) {
                         Ok(config) => {
                             self.config = config;
@@ -140,9 +157,15 @@ impl Application for Gui {
                     };
 
                     self.whitelist_media_types.update(&self.config);
+
+                    /*
+                    return Command::perform(
+                        get_libraries(self.config.jellyfin.url.clone(), self.config.jellyfin.api_key.clone()),
+                        |libraries| Message::UpdateLibraries(libraries.unwrap())
+                    )
+                    */
                 }
 
-                self.panel = panel;
                 Command::none()
             }
             Message::UpdateUrl(url) => {
@@ -177,6 +200,14 @@ impl Application for Gui {
                 media_type_toggle(val, self, MediaType::AudioBook);
                 Command::none()
             }
+            Message::ToggleCustomButtons(val) => {
+                self.custom_buttons = val;
+                Command::none()
+            }
+            /*Message::UpdateLibraries(libraries) => {
+                self.libraries = libraries;
+                Command::none()
+            }*/
             Message::SaveSettings => {
                 match std::fs::write(
                     &self.config_path,
@@ -233,7 +264,9 @@ impl Application for Gui {
                 button("MediaTypes >")
                     .on_press(Message::Open(Panel::Settings(Setting::Whitelist)))
                     .padding(5),
-                button("Libraries >").padding(5),
+                button("Buttons >")
+                    .on_press(Message::Open(Panel::Settings(Setting::Buttons)))
+                    .padding(5),
             ]
             .spacing(3)
             .align_items(Alignment::Center);
@@ -306,6 +339,43 @@ impl Application for Gui {
             .align_items(Alignment::Start);
 
             content = column![back, mediatypes]
+                .spacing(10)
+                .align_items(Alignment::Center);
+        } else if self.panel == Panel::Settings(Setting::Buttons) {
+            let back = row![button("< Back")
+                .on_press(Message::Open(Panel::Settings(Setting::Main)))
+                .padding(5),]
+            .spacing(3)
+            .align_items(Alignment::Center);
+
+            let custom = checkbox(
+                "Custom buttons",
+                self.custom_buttons,
+                Message::ToggleCustomButtons,
+            );
+
+            let buttons = self
+                .custom_buttons
+                .then_some(column![column![
+                    column![
+                        row![text("Name: "), text_input("My cool website", "")]
+                            .align_items(Alignment::Center),
+                        row![text("URL: "), text_input("https://example.com", "")]
+                            .align_items(Alignment::Center)
+                    ]
+                    .align_items(Alignment::Center),
+                    column![
+                        row![text("Name: "), text_input("My cool website", "")]
+                            .align_items(Alignment::Center),
+                        row![text("URL: "), text_input("https://example.com", "")]
+                            .align_items(Alignment::Center)
+                    ]
+                    .align_items(Alignment::Center)
+                ]
+                .align_items(Alignment::Center)])
+                .unwrap_or_default();
+
+            content = column![back, custom, buttons]
                 .spacing(10)
                 .align_items(Alignment::Center);
         }
@@ -415,3 +485,30 @@ fn media_type_toggle(val: bool, gui: &mut Gui, media_type: MediaType) {
         }
     }
 }
+
+/*
+async fn get_libraries(url: String, api_key: String) -> Result<Vec<String>, reqwest::Error> {
+    let media_folders: Value = serde_json::from_str(
+        &reqwest::get(format!(
+            "{}/Library/MediaFolders?api_key={}",
+            url.trim_end_matches('/'),
+            api_key
+        ))
+        .await?
+        .text()
+        .await?
+    )
+    .unwrap();
+
+    let items: Vec<Value> = media_folders["Items"].as_array().unwrap().to_vec();
+
+    let mut libraries: Vec<String> = Vec::new();
+
+    for library in items {
+        let name = library["Name"].as_str().unwrap().to_string();
+        libraries.push(name);
+    }
+
+    Ok(libraries)
+}
+*/
