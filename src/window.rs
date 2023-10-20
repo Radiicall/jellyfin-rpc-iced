@@ -4,7 +4,9 @@ use clap::Parser;
 use iced::widget::{button, checkbox, column, container, row, text, text_input};
 use iced::{executor, Alignment, Length};
 use iced::{Application, Command, Element, Theme};
-use jellyfin_rpc::core::config::{get_config_path, Blacklist, Config, Discord, Username};
+use jellyfin_rpc::core::config::{
+    get_config_path, Blacklist, Config, Discord, Images, Imgur, Username,
+};
 use jellyfin_rpc::jellyfin::MediaType;
 use jellyfin_rpc::Button;
 use std::sync::mpsc;
@@ -33,6 +35,9 @@ pub enum Message {
     UpdateNewUsername(String),
     AddUsername,
     RemoveUsername(String),
+    Images(bool),
+    Imgur(bool),
+    ImgurClientId(String),
     SaveSettings,
 }
 
@@ -48,6 +53,7 @@ pub enum Setting {
     Whitelist,
     Buttons,
     Users,
+    Images,
 }
 
 pub struct Gui {
@@ -58,6 +64,7 @@ pub struct Gui {
     whitelist_media_types: WhitelistMediaTypes,
     custom_buttons: bool,
     buttons: Buttons,
+    image_options: ImageOptions,
     new_username: String,
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
@@ -121,6 +128,11 @@ impl Application for Gui {
                     one: buttons[0].clone(),
                     two: buttons[1].clone(),
                 },
+                image_options: ImageOptions {
+                    enabled: false,
+                    imgur: false,
+                    imgur_client_id: "".to_string(),
+                },
                 config_path: config_path.clone(),
             },
             Command::perform(
@@ -177,15 +189,10 @@ impl Application for Gui {
 
                     self.whitelist_media_types.update(&self.config);
 
-                    if self.buttons.one.name != "dynamic"
+                    self.custom_buttons = self.buttons.one.name != "dynamic"
                         || self.buttons.one.url != "dynamic"
                         || self.buttons.two.name != "dynamic"
-                        || self.buttons.two.url != "dynamic"
-                    {
-                        self.custom_buttons = true;
-                    } else {
-                        self.custom_buttons = false;
-                    }
+                        || self.buttons.two.url != "dynamic";
 
                     let default_button = Button {
                         name: String::from("dynamic"),
@@ -200,6 +207,29 @@ impl Application for Gui {
                         .unwrap_or(vec![default_button.clone(), default_button]);
 
                     self.buttons.update(buttons);
+
+                    self.image_options.enabled =
+                        self.config.images.clone().is_some_and(|images| {
+                            images.enable_images.is_some_and(|enabled| enabled)
+                        });
+
+                    if self
+                        .config
+                        .images
+                        .clone()
+                        .is_some_and(|images| images.imgur_images.is_some_and(|imgur| imgur))
+                    {
+                        self.image_options.imgur = true;
+
+                        self.image_options.imgur_client_id = self
+                            .config
+                            .imgur
+                            .clone()
+                            .and_then(|imgur| imgur.client_id)
+                            .unwrap_or_default();
+                    } else {
+                        self.image_options.imgur = false;
+                    }
 
                     /*
                     return Command::perform(
@@ -294,6 +324,18 @@ impl Application for Gui {
 
                 Command::none()
             }
+            Message::Images(val) => {
+                self.image_options.enabled = val;
+                Command::none()
+            }
+            Message::Imgur(val) => {
+                self.image_options.imgur = val;
+                Command::none()
+            }
+            Message::ImgurClientId(client_id) => {
+                self.image_options.imgur_client_id = client_id;
+                Command::none()
+            }
             /*Message::UpdateLibraries(libraries) => {
                 self.libraries = libraries;
                 Command::none()
@@ -310,6 +352,15 @@ impl Application for Gui {
                         buttons: Some(vec![self.buttons.one.clone(), self.buttons.two.clone()]),
                     })
                 }
+
+                self.config.images = Some(Images {
+                    enable_images: Some(self.image_options.enabled),
+                    imgur_images: Some(self.image_options.imgur),
+                });
+
+                self.config.imgur = Some(Imgur {
+                    client_id: Some(self.image_options.imgur_client_id.clone()),
+                });
 
                 match std::fs::write(
                     &self.config_path,
@@ -360,20 +411,33 @@ impl Application for Gui {
             }
             Panel::Settings(setting) => match setting {
                 Setting::Main => {
-                    let back = column![
+                    let menu_buttons = column![
                         button("< Back")
                             .on_press(Message::Open(Panel::Main))
                             .padding(5),
-                        button("MediaTypes >")
-                            .on_press(Message::Open(Panel::Settings(Setting::Whitelist)))
-                            .padding(5),
-                        button("Buttons >")
-                            .on_press(Message::Open(Panel::Settings(Setting::Buttons)))
-                            .padding(5),
-                        button("Users >").on_press(Message::Open(Panel::Settings(Setting::Users)))
+                        row![
+                            button("MediaTypes >")
+                                .on_press(Message::Open(Panel::Settings(Setting::Whitelist)))
+                                .padding(5),
+                            button("Buttons >")
+                                .on_press(Message::Open(Panel::Settings(Setting::Buttons)))
+                                .padding(5),
+                        ]
+                        .spacing(3)
+                        .align_items(Alignment::Start),
+                        row![
+                            button("Users >")
+                                .on_press(Message::Open(Panel::Settings(Setting::Users)))
+                                .padding(5),
+                            button("Images >")
+                                .on_press(Message::Open(Panel::Settings(Setting::Images)))
+                                .padding(5),
+                        ]
+                        .spacing(3)
+                        .align_items(Alignment::Start)
                     ]
                     .spacing(3)
-                    .align_items(Alignment::Center);
+                    .align_items(Alignment::Start);
 
                     let reload_config = button("Reload Config")
                         .on_press(Message::ReloadConfig)
@@ -397,7 +461,7 @@ impl Application for Gui {
 
                     let save = button("Save").on_press(Message::SaveSettings).padding(10);
 
-                    column![back, reload_config, url, api_key, save, status]
+                    column![menu_buttons, reload_config, url, api_key, save, status]
                         .spacing(10)
                         .align_items(Alignment::Center)
                 }
@@ -555,6 +619,39 @@ impl Application for Gui {
                         .spacing(10)
                         .align_items(Alignment::Center)
                 }
+                Setting::Images => {
+                    let back = row![button("< Back")
+                        .on_press(Message::Open(Panel::Settings(Setting::Main)))
+                        .padding(5),]
+                    .spacing(3)
+                    .align_items(Alignment::Center);
+
+                    let images =
+                        checkbox("Enable Images", self.image_options.enabled, Message::Images);
+
+                    let imgur = match self.image_options.enabled {
+                        true => row![checkbox(
+                            "Use Imgur",
+                            self.image_options.imgur,
+                            Message::Imgur
+                        )],
+                        false => row![],
+                    };
+
+                    let imgur_client_id = match self.image_options.imgur {
+                        true => {
+                            row![
+                                text_input("abcdefg123456", &self.image_options.imgur_client_id)
+                                    .on_input(Message::ImgurClientId)
+                            ]
+                        }
+                        false => row![],
+                    };
+
+                    column![back, images, imgur, imgur_client_id]
+                        .spacing(10)
+                        .align_items(Alignment::Center)
+                }
             },
         };
 
@@ -674,6 +771,12 @@ impl Buttons {
         self.one = new_buttons[0].clone();
         self.two = new_buttons[1].clone();
     }
+}
+
+pub struct ImageOptions {
+    enabled: bool,
+    imgur: bool,
+    imgur_client_id: String,
 }
 
 /*

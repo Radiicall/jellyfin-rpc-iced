@@ -19,10 +19,10 @@ It's very much WIP but should work just fine.
     - [ ] Separator
   - [x] Change buttons
   - [ ] Change application ID
-  - [ ] Enable/Disable imgur
-    - [ ] Toggle
-    - [ ] change client id
-  - [ ] Enable/Disable images
+  - [x] Enable/Disable images
+    - [x] Enable/Disable imgur images
+      - [x] Toggle
+      - [x] change client id
 - [ ] Have an initial setup (ex. login screen or if i cant figure that out then just fields to enter API key, username, etc.)
 - [ ] Tray Icon
 - [ ] Theme
