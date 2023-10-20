@@ -4,8 +4,9 @@ use clap::Parser;
 use iced::widget::{button, checkbox, column, container, row, text, text_input, Column};
 use iced::{executor, Alignment, Length};
 use iced::{Application, Command, Element, Theme};
-use jellyfin_rpc::core::config::{get_config_path, Blacklist, Config};
+use jellyfin_rpc::core::config::{get_config_path, Blacklist, Config, Discord};
 use jellyfin_rpc::jellyfin::MediaType;
+use jellyfin_rpc::Button;
 use std::sync::mpsc;
 //use reqwest;
 
@@ -25,6 +26,10 @@ pub enum Message {
     ToggleBooks(bool),
     ToggleAudioBooks(bool),
     ToggleCustomButtons(bool),
+    UpdateButtonOneName(String),
+    UpdateButtonOneUrl(String),
+    UpdateButtonTwoName(String),
+    UpdateButtonTwoUrl(String),
     SaveSettings,
 }
 
@@ -48,6 +53,7 @@ pub struct Gui {
     panel: Panel,
     whitelist_media_types: WhitelistMediaTypes,
     custom_buttons: bool,
+    buttons: Buttons,
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
     config_path: String,
@@ -82,15 +88,18 @@ impl Application for Gui {
 
         let config = Config::load(&config_path).unwrap_or_else(|_| Config::default());
 
-        let mut custom_buttons = false;
+        let custom_buttons = false;
 
-        if config
+        let default_button = Button {
+            name: String::from("dynamic"),
+            url: String::from("dynamic"),
+        };
+
+        let buttons = config
             .discord
             .clone()
-            .is_some_and(|discord| discord.buttons.is_some())
-        {
-            custom_buttons = true;
-        }
+            .and_then(|discord| discord.buttons)
+            .unwrap_or(vec![default_button.clone(), default_button]);
 
         (
             Gui {
@@ -102,6 +111,10 @@ impl Application for Gui {
                 rx: rx_iced,
                 tx: tx_iced,
                 custom_buttons,
+                buttons: Buttons {
+                    one: buttons[0].clone(),
+                    two: buttons[1].clone(),
+                },
                 config_path: config_path.clone(),
             },
             Command::perform(
@@ -158,6 +171,30 @@ impl Application for Gui {
 
                     self.whitelist_media_types.update(&self.config);
 
+                    if self.buttons.one.name != "dynamic"
+                        || self.buttons.one.url != "dynamic"
+                        || self.buttons.two.name != "dynamic"
+                        || self.buttons.two.url != "dynamic"
+                    {
+                        self.custom_buttons = true;
+                    } else {
+                        self.custom_buttons = false;
+                    }
+
+                    let default_button = Button {
+                        name: String::from("dynamic"),
+                        url: String::from("dynamic"),
+                    };
+
+                    let buttons = self
+                        .config
+                        .discord
+                        .clone()
+                        .and_then(|discord| discord.buttons)
+                        .unwrap_or(vec![default_button.clone(), default_button]);
+
+                    self.buttons.update(buttons);
+
                     /*
                     return Command::perform(
                         get_libraries(self.config.jellyfin.url.clone(), self.config.jellyfin.api_key.clone()),
@@ -204,11 +241,39 @@ impl Application for Gui {
                 self.custom_buttons = val;
                 Command::none()
             }
+            Message::UpdateButtonOneName(name) => {
+                self.buttons.one.name = name;
+                Command::none()
+            }
+            Message::UpdateButtonOneUrl(url) => {
+                self.buttons.one.url = url;
+                Command::none()
+            }
+            Message::UpdateButtonTwoName(name) => {
+                self.buttons.two.name = name;
+                Command::none()
+            }
+            Message::UpdateButtonTwoUrl(url) => {
+                self.buttons.two.url = url;
+                Command::none()
+            }
             /*Message::UpdateLibraries(libraries) => {
                 self.libraries = libraries;
                 Command::none()
             }*/
             Message::SaveSettings => {
+                if self.config.discord.is_some() {
+                    let mut discord = self.config.discord.clone().unwrap();
+                    discord.buttons =
+                        Some(vec![self.buttons.one.clone(), self.buttons.two.clone()]);
+                    self.config.discord = Some(discord);
+                } else {
+                    self.config.discord = Some(Discord {
+                        application_id: None,
+                        buttons: Some(vec![self.buttons.one.clone(), self.buttons.two.clone()]),
+                    })
+                }
+
                 match std::fs::write(
                     &self.config_path,
                     serde_json::to_string_pretty(&self.config).unwrap(),
@@ -357,18 +422,36 @@ impl Application for Gui {
             let buttons = self
                 .custom_buttons
                 .then_some(column![
+                    text("Button 1").size(20),
                     column![
-                        row![text("Name: "), text_input("My cool website", "")]
-                            .align_items(Alignment::Center),
-                        row![text("URL: "), text_input("https://example.com", "")]
-                            .align_items(Alignment::Center)
+                        row![
+                            text("Name: "),
+                            text_input("My cool website", &self.buttons.one.name)
+                                .on_input(Message::UpdateButtonOneName)
+                        ]
+                        .align_items(Alignment::Center),
+                        row![
+                            text("URL: "),
+                            text_input("https://example.com", &self.buttons.one.url)
+                                .on_input(Message::UpdateButtonOneUrl)
+                        ]
+                        .align_items(Alignment::Center)
                     ]
                     .align_items(Alignment::Center),
+                    text("Button 2").size(20),
                     column![
-                        row![text("Name: "), text_input("My cool website", "")]
-                            .align_items(Alignment::Center),
-                        row![text("URL: "), text_input("https://example.com", "")]
-                            .align_items(Alignment::Center)
+                        row![
+                            text("Name: "),
+                            text_input("My 2nd cool website", &self.buttons.two.name)
+                                .on_input(Message::UpdateButtonTwoName)
+                        ]
+                        .align_items(Alignment::Center),
+                        row![
+                            text("URL: "),
+                            text_input("https://example.org", &self.buttons.two.url)
+                                .on_input(Message::UpdateButtonTwoUrl)
+                        ]
+                        .align_items(Alignment::Center)
                     ]
                     .align_items(Alignment::Center)
                 ]
@@ -483,6 +566,18 @@ fn media_type_toggle(val: bool, gui: &mut Gui, media_type: MediaType) {
                 });
             }
         }
+    }
+}
+
+pub struct Buttons {
+    one: Button,
+    two: Button,
+}
+
+impl Buttons {
+    pub fn update(&mut self, new_buttons: Vec<Button>) {
+        self.one = new_buttons[0].clone();
+        self.two = new_buttons[1].clone();
     }
 }
 

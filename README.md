@@ -17,7 +17,7 @@ It's very much WIP but should work just fine.
   - [ ] Change music display
     - [ ] What to display
     - [ ] Separator
-  - [ ] Change buttons
+  - [x] Change buttons
   - [ ] Change application ID
   - [ ] Enable/Disable imgur
     - [ ] Toggle
