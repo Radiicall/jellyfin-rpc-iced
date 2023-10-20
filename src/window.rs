@@ -517,31 +517,38 @@ impl Application for Gui {
                         text_input("Press enter to submit", &self.new_username)
                             .on_input(Message::UpdateNewUsername)
                             .on_submit(Message::AddUsername)
-                        ];
+                    ]
+                    .align_items(Alignment::Center);
 
                     let usernames = match &self.config.jellyfin.username {
-                        Username::Vec(usernames) => {
-                            usernames.iter().fold(
-                                column![text("Usernames:")],
-                                |column: iced::widget::Column<'_, Message>, username| {
-                                    column.push(row![
+                        Username::Vec(usernames) => usernames.iter().fold(
+                            column![text("Usernames:")]
+                                .spacing(4)
+                                .align_items(Alignment::Start),
+                            |column: iced::widget::Column<'_, Message>, username| {
+                                column.push(
+                                    row![
                                         text(username),
-                                        button("X")
-                                            .on_press(Message::RemoveUsername(username.to_string()))
-                                    ])
-                                }
-                            )
-                        }
-                        Username::String(username) => {
-                            column![
-                                text("Usernames:"),
-                                row![
-                                    text(username),
-                                    button("X")
-                                        .on_press(Message::RemoveUsername(username.to_string())),
-                                ],
+                                        button("X").on_press(Message::RemoveUsername(
+                                            username.to_string()
+                                        ))
+                                    ]
+                                    .spacing(3)
+                                    .align_items(Alignment::Center),
+                                )
+                            },
+                        ),
+                        Username::String(username) => column![
+                            text("Usernames:"),
+                            row![
+                                text(username),
+                                button("X").on_press(Message::RemoveUsername(username.to_string())),
                             ]
-                        }
+                            .spacing(3)
+                            .align_items(Alignment::Center),
+                        ]
+                        .spacing(4)
+                        .align_items(Alignment::Start),
                     };
 
                     column![back, add, usernames]
