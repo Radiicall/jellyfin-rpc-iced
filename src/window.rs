@@ -356,7 +356,7 @@ impl Application for Gui {
 
             let buttons = self
                 .custom_buttons
-                .then_some(column![column![
+                .then_some(column![
                     column![
                         row![text("Name: "), text_input("My cool website", "")]
                             .align_items(Alignment::Center),
@@ -372,7 +372,7 @@ impl Application for Gui {
                     ]
                     .align_items(Alignment::Center)
                 ]
-                .align_items(Alignment::Center)])
+                .align_items(Alignment::Center))
                 .unwrap_or_default();
 
             content = column![back, custom, buttons]
