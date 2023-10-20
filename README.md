@@ -12,7 +12,7 @@ It's very much WIP but should work just fine.
   - [x] Enable/Disable different media types
   - [ ] Enable/Disable libraries
   - [x] Change api key
-  - [ ] Add/Remove usernames
+  - [x] Add/Remove usernames
   - [x] Change URL
   - [ ] Change music display
     - [ ] What to display

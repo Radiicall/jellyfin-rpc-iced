@@ -1,10 +1,10 @@
 use crate::server::{self, Event};
 use crate::Args;
 use clap::Parser;
-use iced::widget::{button, checkbox, column, container, row, text, text_input, Column};
+use iced::widget::{button, checkbox, column, container, row, text, text_input};
 use iced::{executor, Alignment, Length};
 use iced::{Application, Command, Element, Theme};
-use jellyfin_rpc::core::config::{get_config_path, Blacklist, Config, Discord};
+use jellyfin_rpc::core::config::{get_config_path, Blacklist, Config, Discord, Username};
 use jellyfin_rpc::jellyfin::MediaType;
 use jellyfin_rpc::Button;
 use std::sync::mpsc;
@@ -30,6 +30,9 @@ pub enum Message {
     UpdateButtonOneUrl(String),
     UpdateButtonTwoName(String),
     UpdateButtonTwoUrl(String),
+    UpdateNewUsername(String),
+    AddUsername,
+    RemoveUsername(String),
     SaveSettings,
 }
 
@@ -44,6 +47,7 @@ pub enum Setting {
     Main,
     Whitelist,
     Buttons,
+    Users,
 }
 
 pub struct Gui {
@@ -54,6 +58,7 @@ pub struct Gui {
     whitelist_media_types: WhitelistMediaTypes,
     custom_buttons: bool,
     buttons: Buttons,
+    new_username: String,
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
     config_path: String,
@@ -108,6 +113,7 @@ impl Application for Gui {
                 config: config.clone(),
                 panel: Panel::Main,
                 whitelist_media_types: WhitelistMediaTypes::default(),
+                new_username: "".to_string(),
                 rx: rx_iced,
                 tx: tx_iced,
                 custom_buttons,
@@ -257,6 +263,37 @@ impl Application for Gui {
                 self.buttons.two.url = url;
                 Command::none()
             }
+            Message::UpdateNewUsername(username) => {
+                self.new_username = username;
+                Command::none()
+            }
+            Message::AddUsername => {
+                let mut usernames = match &self.config.jellyfin.username {
+                    Username::Vec(usernames) => usernames.to_vec(),
+                    Username::String(username) => vec![username.to_string()],
+                };
+
+                if !usernames.contains(&self.new_username) {
+                    usernames.push(self.new_username.clone());
+                }
+
+                self.new_username = "".to_string();
+                self.config.jellyfin.username = Username::Vec(usernames);
+
+                Command::none()
+            }
+            Message::RemoveUsername(pattern) => {
+                let mut usernames = match &self.config.jellyfin.username {
+                    Username::Vec(usernames) => usernames.to_vec(),
+                    Username::String(username) => vec![username.to_string()],
+                };
+
+                usernames.retain(|username| username != &pattern);
+
+                self.config.jellyfin.username = Username::Vec(usernames);
+
+                Command::none()
+            }
             /*Message::UpdateLibraries(libraries) => {
                 self.libraries = libraries;
                 Command::none()
@@ -297,171 +334,222 @@ impl Application for Gui {
     }
 
     fn view(&self) -> Element<Message> {
-        let mut content = Column::new();
-
         let status = column![text("Status: ").size(30), text(self.status.clone()),]
             .align_items(Alignment::Center);
 
-        if self.panel == Panel::Main {
-            let start_stop = row![
-                button("Start").on_press(Message::Start).padding(10),
-                button("Stop").on_press(Message::Stop).padding(10),
-            ]
-            .spacing(10)
-            .align_items(Alignment::Center);
-
-            let error = column![text("Error: ").size(30), text(self.error.clone()),]
-                .spacing(10)
-                .align_items(Alignment::Center);
-
-            let settings = button("Settings")
-                .on_press(Message::Open(Panel::Settings(Setting::Main)))
-                .padding(5);
-
-            content = column![start_stop, status, error, settings]
-                .spacing(10)
-                .align_items(Alignment::Center);
-        } else if self.panel == Panel::Settings(Setting::Main) {
-            let back = column![
-                button("< Back")
-                    .on_press(Message::Open(Panel::Main))
-                    .padding(5),
-                button("MediaTypes >")
-                    .on_press(Message::Open(Panel::Settings(Setting::Whitelist)))
-                    .padding(5),
-                button("Buttons >")
-                    .on_press(Message::Open(Panel::Settings(Setting::Buttons)))
-                    .padding(5),
-            ]
-            .spacing(3)
-            .align_items(Alignment::Center);
-
-            let reload_config = button("Reload Config")
-                .on_press(Message::ReloadConfig)
-                .padding(10);
-
-            let url = row![
-                text("URL:"),
-                text_input("http://localhost:8096", &self.config.jellyfin.url)
-                    .on_input(Message::UpdateUrl),
-            ]
-            .spacing(3)
-            .align_items(Alignment::Center);
-
-            let api_key = row![
-                text("Api Key:"),
-                text_input("aaaabbbbcccc111122223333", &self.config.jellyfin.api_key)
-                    .on_input(Message::UpdateApiKey),
-            ]
-            .spacing(3)
-            .align_items(Alignment::Center);
-
-            let save = button("Save").on_press(Message::SaveSettings).padding(10);
-
-            content = column![back, reload_config, url, api_key, save, status]
-                .spacing(10)
-                .align_items(Alignment::Center);
-        } else if self.panel == Panel::Settings(Setting::Whitelist) {
-            let back = row![button("< Back")
-                .on_press(Message::Open(Panel::Settings(Setting::Main)))
-                .padding(5),]
-            .spacing(3)
-            .align_items(Alignment::Center);
-
-            let mediatypes = column![
-                checkbox(
-                    "Movies",
-                    self.whitelist_media_types.movies,
-                    Message::ToggleMovies
-                ),
-                checkbox(
-                    "Episodes",
-                    self.whitelist_media_types.episodes,
-                    Message::ToggleEpisodes
-                ),
-                checkbox(
-                    "Television",
-                    self.whitelist_media_types.livetv,
-                    Message::ToggleLiveTv
-                ),
-                checkbox(
-                    "Music",
-                    self.whitelist_media_types.music,
-                    Message::ToggleMusic
-                ),
-                checkbox(
-                    "Books",
-                    self.whitelist_media_types.books,
-                    Message::ToggleBooks
-                ),
-                checkbox(
-                    "AudioBooks",
-                    self.whitelist_media_types.audiobooks,
-                    Message::ToggleAudioBooks
-                ),
-            ]
-            .spacing(6)
-            .align_items(Alignment::Start);
-
-            content = column![back, mediatypes]
-                .spacing(10)
-                .align_items(Alignment::Center);
-        } else if self.panel == Panel::Settings(Setting::Buttons) {
-            let back = row![button("< Back")
-                .on_press(Message::Open(Panel::Settings(Setting::Main)))
-                .padding(5),]
-            .spacing(3)
-            .align_items(Alignment::Center);
-
-            let custom = checkbox(
-                "Custom buttons",
-                self.custom_buttons,
-                Message::ToggleCustomButtons,
-            );
-
-            let buttons = self
-                .custom_buttons
-                .then_some(column![
-                    text("Button 1").size(20),
-                    column![
-                        row![
-                            text("Name: "),
-                            text_input("My cool website", &self.buttons.one.name)
-                                .on_input(Message::UpdateButtonOneName)
-                        ]
-                        .align_items(Alignment::Center),
-                        row![
-                            text("URL: "),
-                            text_input("https://example.com", &self.buttons.one.url)
-                                .on_input(Message::UpdateButtonOneUrl)
-                        ]
-                        .align_items(Alignment::Center)
-                    ]
-                    .align_items(Alignment::Center),
-                    text("Button 2").size(20),
-                    column![
-                        row![
-                            text("Name: "),
-                            text_input("My 2nd cool website", &self.buttons.two.name)
-                                .on_input(Message::UpdateButtonTwoName)
-                        ]
-                        .align_items(Alignment::Center),
-                        row![
-                            text("URL: "),
-                            text_input("https://example.org", &self.buttons.two.url)
-                                .on_input(Message::UpdateButtonTwoUrl)
-                        ]
-                        .align_items(Alignment::Center)
-                    ]
-                    .align_items(Alignment::Center)
+        let content = match &self.panel {
+            Panel::Main => {
+                let start_stop = row![
+                    button("Start").on_press(Message::Start).padding(10),
+                    button("Stop").on_press(Message::Stop).padding(10),
                 ]
-                .align_items(Alignment::Center))
-                .unwrap_or_default();
-
-            content = column![back, custom, buttons]
                 .spacing(10)
                 .align_items(Alignment::Center);
-        }
+
+                let error = column![text("Error: ").size(30), text(self.error.clone()),]
+                    .spacing(10)
+                    .align_items(Alignment::Center);
+
+                let settings = button("Settings")
+                    .on_press(Message::Open(Panel::Settings(Setting::Main)))
+                    .padding(5);
+
+                column![start_stop, status, error, settings]
+                    .spacing(10)
+                    .align_items(Alignment::Center)
+            }
+            Panel::Settings(setting) => match setting {
+                Setting::Main => {
+                    let back = column![
+                        button("< Back")
+                            .on_press(Message::Open(Panel::Main))
+                            .padding(5),
+                        button("MediaTypes >")
+                            .on_press(Message::Open(Panel::Settings(Setting::Whitelist)))
+                            .padding(5),
+                        button("Buttons >")
+                            .on_press(Message::Open(Panel::Settings(Setting::Buttons)))
+                            .padding(5),
+                        button("Users >").on_press(Message::Open(Panel::Settings(Setting::Users)))
+                    ]
+                    .spacing(3)
+                    .align_items(Alignment::Center);
+
+                    let reload_config = button("Reload Config")
+                        .on_press(Message::ReloadConfig)
+                        .padding(10);
+
+                    let url = row![
+                        text("URL:"),
+                        text_input("http://localhost:8096", &self.config.jellyfin.url)
+                            .on_input(Message::UpdateUrl),
+                    ]
+                    .spacing(3)
+                    .align_items(Alignment::Center);
+
+                    let api_key = row![
+                        text("Api Key:"),
+                        text_input("aaaabbbbcccc111122223333", &self.config.jellyfin.api_key)
+                            .on_input(Message::UpdateApiKey),
+                    ]
+                    .spacing(3)
+                    .align_items(Alignment::Center);
+
+                    let save = button("Save").on_press(Message::SaveSettings).padding(10);
+
+                    column![back, reload_config, url, api_key, save, status]
+                        .spacing(10)
+                        .align_items(Alignment::Center)
+                }
+                Setting::Whitelist => {
+                    let back = row![button("< Back")
+                        .on_press(Message::Open(Panel::Settings(Setting::Main)))
+                        .padding(5),]
+                    .spacing(3)
+                    .align_items(Alignment::Center);
+
+                    let mediatypes = column![
+                        checkbox(
+                            "Movies",
+                            self.whitelist_media_types.movies,
+                            Message::ToggleMovies
+                        ),
+                        checkbox(
+                            "Episodes",
+                            self.whitelist_media_types.episodes,
+                            Message::ToggleEpisodes
+                        ),
+                        checkbox(
+                            "Television",
+                            self.whitelist_media_types.livetv,
+                            Message::ToggleLiveTv
+                        ),
+                        checkbox(
+                            "Music",
+                            self.whitelist_media_types.music,
+                            Message::ToggleMusic
+                        ),
+                        checkbox(
+                            "Books",
+                            self.whitelist_media_types.books,
+                            Message::ToggleBooks
+                        ),
+                        checkbox(
+                            "AudioBooks",
+                            self.whitelist_media_types.audiobooks,
+                            Message::ToggleAudioBooks
+                        ),
+                    ]
+                    .spacing(6)
+                    .align_items(Alignment::Start);
+
+                    column![back, mediatypes]
+                        .spacing(10)
+                        .align_items(Alignment::Center)
+                }
+                Setting::Buttons => {
+                    let back = row![button("< Back")
+                        .on_press(Message::Open(Panel::Settings(Setting::Main)))
+                        .padding(5),]
+                    .spacing(3)
+                    .align_items(Alignment::Center);
+
+                    let custom = checkbox(
+                        "Custom buttons",
+                        self.custom_buttons,
+                        Message::ToggleCustomButtons,
+                    );
+
+                    let buttons = self
+                        .custom_buttons
+                        .then_some(
+                            column![
+                                text("Button 1").size(20),
+                                column![
+                                    row![
+                                        text("Name: "),
+                                        text_input("My cool website", &self.buttons.one.name)
+                                            .on_input(Message::UpdateButtonOneName)
+                                    ]
+                                    .align_items(Alignment::Center),
+                                    row![
+                                        text("URL: "),
+                                        text_input("https://example.com", &self.buttons.one.url)
+                                            .on_input(Message::UpdateButtonOneUrl)
+                                    ]
+                                    .align_items(Alignment::Center)
+                                ]
+                                .align_items(Alignment::Center),
+                                text("Button 2").size(20),
+                                column![
+                                    row![
+                                        text("Name: "),
+                                        text_input("My 2nd cool website", &self.buttons.two.name)
+                                            .on_input(Message::UpdateButtonTwoName)
+                                    ]
+                                    .align_items(Alignment::Center),
+                                    row![
+                                        text("URL: "),
+                                        text_input("https://example.org", &self.buttons.two.url)
+                                            .on_input(Message::UpdateButtonTwoUrl)
+                                    ]
+                                    .align_items(Alignment::Center)
+                                ]
+                                .align_items(Alignment::Center)
+                            ]
+                            .align_items(Alignment::Center),
+                        )
+                        .unwrap_or_default();
+
+                    column![back, custom, buttons]
+                        .spacing(10)
+                        .align_items(Alignment::Center)
+                }
+                Setting::Users => {
+                    let back = row![button("< Back")
+                        .on_press(Message::Open(Panel::Settings(Setting::Main)))
+                        .padding(5),]
+                    .spacing(3)
+                    .align_items(Alignment::Center);
+
+                    let add = row![
+                        text("New: "),
+                        text_input("Press enter to submit", &self.new_username)
+                            .on_input(Message::UpdateNewUsername)
+                            .on_submit(Message::AddUsername)
+                        ];
+
+                    let usernames = match &self.config.jellyfin.username {
+                        Username::Vec(usernames) => {
+                            usernames.iter().fold(
+                                column![text("Usernames:")],
+                                |column: iced::widget::Column<'_, Message>, username| {
+                                    column.push(row![
+                                        text(username),
+                                        button("X")
+                                            .on_press(Message::RemoveUsername(username.to_string()))
+                                    ])
+                                }
+                            )
+                        }
+                        Username::String(username) => {
+                            column![
+                                text("Usernames:"),
+                                row![
+                                    text(username),
+                                    button("X")
+                                        .on_press(Message::RemoveUsername(username.to_string())),
+                                ],
+                            ]
+                        }
+                    };
+
+                    column![back, add, usernames]
+                        .spacing(10)
+                        .align_items(Alignment::Center)
+                }
+            },
+        };
 
         container(content)
             .width(Length::Fill)
