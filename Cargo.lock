@@ -1312,6 +1312,7 @@ dependencies = [
  "discord-rich-presence",
  "iced",
  "jellyfin-rpc",
+ "reqwest",
  "retry",
  "serde",
  "serde_json",

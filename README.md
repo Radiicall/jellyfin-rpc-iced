@@ -10,7 +10,7 @@ It's very much WIP but should work just fine.
 - [x] Config reloading
 - [ ] Config editing
   - [x] Enable/Disable different media types
-  - [ ] Enable/Disable libraries
+  - [x] Enable/Disable libraries
   - [x] Change api key
   - [x] Add/Remove usernames
   - [x] Change URL

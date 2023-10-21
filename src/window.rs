@@ -10,7 +10,8 @@ use jellyfin_rpc::core::config::{
 use jellyfin_rpc::jellyfin::MediaType;
 use jellyfin_rpc::Button;
 use std::sync::mpsc;
-//use reqwest;
+use serde_json::Value;
+
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -38,6 +39,8 @@ pub enum Message {
     Images(bool),
     Imgur(bool),
     ImgurClientId(String),
+    UpdateLibraries(Vec<String>),
+    ToggleLibrary(Library, bool),
     SaveSettings,
 }
 
@@ -50,10 +53,11 @@ pub enum Panel {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Setting {
     Main,
-    Whitelist,
+    MediaTypes,
     Buttons,
     Users,
     Images,
+    Libraries
 }
 
 pub struct Gui {
@@ -68,7 +72,14 @@ pub struct Gui {
     new_username: String,
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
+    libraries: Vec<Library>,
     config_path: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Library {
+    name: String,
+    enabled: bool,
 }
 
 impl Application for Gui {
@@ -133,6 +144,7 @@ impl Application for Gui {
                     imgur: false,
                     imgur_client_id: "".to_string(),
                 },
+                libraries: Vec::new(),
                 config_path: config_path.clone(),
             },
             Command::perform(
@@ -231,12 +243,10 @@ impl Application for Gui {
                         self.image_options.imgur = false;
                     }
 
-                    /*
                     return Command::perform(
                         get_libraries(self.config.jellyfin.url.clone(), self.config.jellyfin.api_key.clone()),
                         |libraries| Message::UpdateLibraries(libraries.unwrap())
                     )
-                    */
                 }
 
                 Command::none()
@@ -336,10 +346,29 @@ impl Application for Gui {
                 self.image_options.imgur_client_id = client_id;
                 Command::none()
             }
-            /*Message::UpdateLibraries(libraries) => {
-                self.libraries = libraries;
+            Message::UpdateLibraries(libraries) => {
+                self.libraries = libraries.iter().map(|library| Library { name: library.to_string(), enabled: true }).collect();
+
+                if let Some(blacklist) = self.config.jellyfin.blacklist.clone() {
+                    if let Some(libraries) = blacklist.libraries {
+                        for library in &mut self.libraries {
+                            if libraries.contains(&library.name) {
+                                library.enabled = false;
+                            }
+                        }
+                    }
+                }
+
                 Command::none()
-            }*/
+            }
+            Message::ToggleLibrary(library, val) => {
+                for _library in &mut self.libraries {
+                    if library == *_library {
+                        _library.enabled = val;
+                    }
+                };
+                Command::none()
+            }
             Message::SaveSettings => {
                 if self.config.discord.is_some() {
                     let mut discord = self.config.discord.clone().unwrap();
@@ -361,6 +390,21 @@ impl Application for Gui {
                 self.config.imgur = Some(Imgur {
                     client_id: Some(self.image_options.imgur_client_id.clone()),
                 });
+
+                match self.config.jellyfin.blacklist.clone() {
+                    Some(_) => {
+                        self.config.jellyfin.blacklist = Some(Blacklist {
+                            media_types: self.config.jellyfin.blacklist.clone().unwrap().media_types,
+                            libraries: Some(self.libraries.iter().filter(|library| !library.enabled).map(|library| library.name.to_owned()).collect())
+                        })
+                    }
+                    None => {
+                        self.config.jellyfin.blacklist = Some(Blacklist {
+                            media_types: None,
+                            libraries: Some(self.libraries.iter().filter(|library| !library.enabled).map(|library| library.name.to_owned()).collect())
+                        })
+                    }
+                };
 
                 match std::fs::write(
                     &self.config_path,
@@ -412,25 +456,32 @@ impl Application for Gui {
             Panel::Settings(setting) => match setting {
                 Setting::Main => {
                     let menu_buttons = column![
-                        button("< Back")
-                            .on_press(Message::Open(Panel::Main))
-                            .padding(5),
                         row![
-                            button("MediaTypes >")
-                                .on_press(Message::Open(Panel::Settings(Setting::Whitelist)))
+                            button("< Back")
+                                .on_press(Message::Open(Panel::Main))
                                 .padding(5),
-                            button("Buttons >")
-                                .on_press(Message::Open(Panel::Settings(Setting::Buttons)))
+                            button("Users >")
+                                .on_press(Message::Open(Panel::Settings(Setting::Users)))
                                 .padding(5),
                         ]
                         .spacing(3)
                         .align_items(Alignment::Start),
                         row![
-                            button("Users >")
-                                .on_press(Message::Open(Panel::Settings(Setting::Users)))
+                            button("Buttons >")
+                                .on_press(Message::Open(Panel::Settings(Setting::Buttons)))
                                 .padding(5),
                             button("Images >")
                                 .on_press(Message::Open(Panel::Settings(Setting::Images)))
+                                .padding(5),
+                        ]
+                        .spacing(3)
+                        .align_items(Alignment::Start),
+                        row![
+                            button("MediaTypes >")
+                                .on_press(Message::Open(Panel::Settings(Setting::MediaTypes)))
+                                .padding(5),
+                            button("Libraries >")
+                                .on_press(Message::Open(Panel::Settings(Setting::Libraries)))
                                 .padding(5),
                         ]
                         .spacing(3)
@@ -465,8 +516,8 @@ impl Application for Gui {
                         .spacing(10)
                         .align_items(Alignment::Center)
                 }
-                Setting::Whitelist => {
-                    let back = row![button("< Back")
+                Setting::MediaTypes => {
+                    let back: iced::widget::Row<'_, Message> = row![button("< Back")
                         .on_press(Message::Open(Panel::Settings(Setting::Main)))
                         .padding(5),]
                     .spacing(3)
@@ -603,10 +654,10 @@ impl Application for Gui {
                             },
                         ),
                         Username::String(username) => column![
-                            text("Usernames:"),
+                            text("Libraries:"),
                             row![
-                                text(username),
                                 button("X").on_press(Message::RemoveUsername(username.to_string())),
+                                text(username),
                             ]
                             .spacing(3)
                             .align_items(Alignment::Center),
@@ -649,6 +700,32 @@ impl Application for Gui {
                     };
 
                     column![back, images, imgur, imgur_client_id]
+                        .spacing(10)
+                        .align_items(Alignment::Center)
+                }
+                Setting::Libraries => {
+                    let back = row![button("< Back")
+                        .on_press(Message::Open(Panel::Settings(Setting::Main)))
+                        .padding(5),]
+                    .spacing(3)
+                    .align_items(Alignment::Center);
+
+                    let libraries = self.libraries.iter().fold(
+                        column![text("Libraries:")]
+                            .spacing(4)
+                            .align_items(Alignment::Start),
+                        |column: iced::widget::Column<'_, Message>, library| {
+                            column.push(
+                                row![
+                                    checkbox(&library.name, library.enabled, |val| Message::ToggleLibrary(library.to_owned(), val)),
+                                ]
+                                .spacing(3)
+                                .align_items(Alignment::Center),
+                            )
+                        },
+                    );
+
+                    column![back, libraries]
                         .spacing(10)
                         .align_items(Alignment::Center)
                 }
@@ -779,7 +856,6 @@ pub struct ImageOptions {
     imgur_client_id: String,
 }
 
-/*
 async fn get_libraries(url: String, api_key: String) -> Result<Vec<String>, reqwest::Error> {
     let media_folders: Value = serde_json::from_str(
         &reqwest::get(format!(
@@ -804,4 +880,3 @@ async fn get_libraries(url: String, api_key: String) -> Result<Vec<String>, reqw
 
     Ok(libraries)
 }
-*/
