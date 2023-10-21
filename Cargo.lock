@@ -179,6 +179,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-recursion"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fd55a5ba1179988837d24ab4c7cc8ed6efdeff578ede0416b4225a5fca35bd0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.36",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1294,9 +1305,9 @@ checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
 [[package]]
 name = "jellyfin-rpc"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc18bf3da53f14177f616fb4006969ca100af937766020e9deaab06a1ee7b9e0"
+source = "git+https://github.com/radiicall/jellyfin-rpc.git#59baa7890166d4be9ba6c711a0874e356762b681"
 dependencies = [
+ "async-recursion",
  "discord-rich-presence",
  "reqwest",
  "retry",

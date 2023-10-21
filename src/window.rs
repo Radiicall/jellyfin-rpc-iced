@@ -21,12 +21,7 @@ pub enum Message {
     Update,
     UpdateUrl(String),
     UpdateApiKey(String),
-    ToggleMovies(bool),
-    ToggleEpisodes(bool),
-    ToggleLiveTv(bool),
-    ToggleMusic(bool),
-    ToggleBooks(bool),
-    ToggleAudioBooks(bool),
+    ToggleMediaType(MediaType, bool),
     ToggleCustomButtons(bool),
     UpdateButtonOneName(String),
     UpdateButtonOneUrl(String),
@@ -79,6 +74,51 @@ pub struct Gui {
 pub struct Library {
     name: String,
     enabled: bool,
+}
+
+impl Gui {
+    fn media_type_toggle(&mut self, val: bool, media_type: MediaType) {
+        match media_type {
+            MediaType::Episode => self.whitelist_media_types.episodes = val,
+            MediaType::LiveTv => self.whitelist_media_types.livetv = val,
+            MediaType::Movie => self.whitelist_media_types.movies = val,
+            MediaType::Music => self.whitelist_media_types.music = val,
+            MediaType::Book => self.whitelist_media_types.books = val,
+            MediaType::AudioBook => self.whitelist_media_types.audiobooks = val,
+            MediaType::None => (),
+        }
+    
+        if val {
+            self.config
+                .jellyfin
+                .blacklist
+                .as_mut()
+                .unwrap()
+                .media_types
+                .as_mut()
+                .unwrap()
+                .retain(|mt| mt != &media_type);
+        } else {
+            match self.config.jellyfin.blacklist.clone() {
+                Some(blacklist) => match blacklist.media_types {
+                    Some(mut media_types) => {
+                        media_types.push(media_type);
+                        self.config.jellyfin.blacklist.as_mut().unwrap().media_types = Some(media_types);
+                    }
+                    None => {
+                        self.config.jellyfin.blacklist.as_mut().unwrap().media_types =
+                            Some(vec![media_type])
+                    }
+                },
+                None => {
+                    self.config.jellyfin.blacklist = Some(Blacklist {
+                        media_types: Some(vec![media_type]),
+                        libraries: None,
+                    });
+                }
+            }
+        }
+    }
 }
 
 impl Application for Gui {
@@ -261,28 +301,8 @@ impl Application for Gui {
                 self.config.jellyfin.api_key = api_key;
                 Command::none()
             }
-            Message::ToggleMovies(val) => {
-                media_type_toggle(val, self, MediaType::Movie);
-                Command::none()
-            }
-            Message::ToggleEpisodes(val) => {
-                media_type_toggle(val, self, MediaType::Episode);
-                Command::none()
-            }
-            Message::ToggleLiveTv(val) => {
-                media_type_toggle(val, self, MediaType::LiveTv);
-                Command::none()
-            }
-            Message::ToggleMusic(val) => {
-                media_type_toggle(val, self, MediaType::Music);
-                Command::none()
-            }
-            Message::ToggleBooks(val) => {
-                media_type_toggle(val, self, MediaType::Book);
-                Command::none()
-            }
-            Message::ToggleAudioBooks(val) => {
-                media_type_toggle(val, self, MediaType::AudioBook);
+            Message::ToggleMediaType(media_type, val) => {
+                self.media_type_toggle(val, media_type);
                 Command::none()
             }
             Message::ToggleCustomButtons(val) => {
@@ -553,32 +573,32 @@ impl Application for Gui {
                         checkbox(
                             "Movies",
                             self.whitelist_media_types.movies,
-                            Message::ToggleMovies
+                            |val| Message::ToggleMediaType(MediaType::Movie, val)
                         ),
                         checkbox(
                             "Episodes",
                             self.whitelist_media_types.episodes,
-                            Message::ToggleEpisodes
+                            |val| Message::ToggleMediaType(MediaType::Episode, val)
                         ),
                         checkbox(
                             "Television",
                             self.whitelist_media_types.livetv,
-                            Message::ToggleLiveTv
+                            |val| Message::ToggleMediaType(MediaType::LiveTv, val)
                         ),
                         checkbox(
                             "Music",
                             self.whitelist_media_types.music,
-                            Message::ToggleMusic
+                            |val| Message::ToggleMediaType(MediaType::Music, val)
                         ),
                         checkbox(
                             "Books",
                             self.whitelist_media_types.books,
-                            Message::ToggleBooks
+                            |val| Message::ToggleMediaType(MediaType::Book, val)
                         ),
                         checkbox(
                             "AudioBooks",
                             self.whitelist_media_types.audiobooks,
-                            Message::ToggleAudioBooks
+                            |val| Message::ToggleMediaType(MediaType::AudioBook, val)
                         ),
                     ]
                     .spacing(6)
@@ -817,49 +837,6 @@ impl WhitelistMediaTypes {
                 None => (),
             },
             None => (),
-        }
-    }
-}
-
-fn media_type_toggle(val: bool, gui: &mut Gui, media_type: MediaType) {
-    match media_type {
-        MediaType::Episode => gui.whitelist_media_types.episodes = val,
-        MediaType::LiveTv => gui.whitelist_media_types.livetv = val,
-        MediaType::Movie => gui.whitelist_media_types.movies = val,
-        MediaType::Music => gui.whitelist_media_types.music = val,
-        MediaType::Book => gui.whitelist_media_types.books = val,
-        MediaType::AudioBook => gui.whitelist_media_types.audiobooks = val,
-        MediaType::None => (),
-    }
-
-    if val {
-        gui.config
-            .jellyfin
-            .blacklist
-            .as_mut()
-            .unwrap()
-            .media_types
-            .as_mut()
-            .unwrap()
-            .retain(|mt| mt != &media_type);
-    } else {
-        match gui.config.jellyfin.blacklist.clone() {
-            Some(blacklist) => match blacklist.media_types {
-                Some(mut media_types) => {
-                    media_types.push(media_type);
-                    gui.config.jellyfin.blacklist.as_mut().unwrap().media_types = Some(media_types);
-                }
-                None => {
-                    gui.config.jellyfin.blacklist.as_mut().unwrap().media_types =
-                        Some(vec![media_type])
-                }
-            },
-            None => {
-                gui.config.jellyfin.blacklist = Some(Blacklist {
-                    media_types: Some(vec![media_type]),
-                    libraries: None,
-                });
-            }
         }
     }
 }

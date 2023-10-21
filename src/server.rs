@@ -97,7 +97,7 @@ pub async fn run(
                 Err(_) => (),
             }
 
-            let mut content = Content::get(&config).await.unwrap();
+            let mut content = Content::try_get(&config).await;
 
             let mut blacklist_check = true;
             config
