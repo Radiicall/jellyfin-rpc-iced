@@ -9,9 +9,8 @@ use jellyfin_rpc::core::config::{
 };
 use jellyfin_rpc::jellyfin::MediaType;
 use jellyfin_rpc::Button;
-use std::sync::mpsc;
 use serde_json::Value;
-
+use std::sync::mpsc;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -57,7 +56,7 @@ pub enum Setting {
     Buttons,
     Users,
     Images,
-    Libraries
+    Libraries,
 }
 
 pub struct Gui {
@@ -244,9 +243,12 @@ impl Application for Gui {
                     }
 
                     return Command::perform(
-                        get_libraries(self.config.jellyfin.url.clone(), self.config.jellyfin.api_key.clone()),
-                        |libraries| Message::UpdateLibraries(libraries.unwrap())
-                    )
+                        get_libraries(
+                            self.config.jellyfin.url.clone(),
+                            self.config.jellyfin.api_key.clone(),
+                        ),
+                        |libraries| Message::UpdateLibraries(libraries.unwrap()),
+                    );
                 }
 
                 Command::none()
@@ -347,7 +349,13 @@ impl Application for Gui {
                 Command::none()
             }
             Message::UpdateLibraries(libraries) => {
-                self.libraries = libraries.iter().map(|library| Library { name: library.to_string(), enabled: true }).collect();
+                self.libraries = libraries
+                    .iter()
+                    .map(|library| Library {
+                        name: library.to_string(),
+                        enabled: true,
+                    })
+                    .collect();
 
                 if let Some(blacklist) = self.config.jellyfin.blacklist.clone() {
                     if let Some(libraries) = blacklist.libraries {
@@ -366,7 +374,7 @@ impl Application for Gui {
                     if library == *_library {
                         _library.enabled = val;
                     }
-                };
+                }
                 Command::none()
             }
             Message::SaveSettings => {
@@ -394,14 +402,32 @@ impl Application for Gui {
                 match self.config.jellyfin.blacklist.clone() {
                     Some(_) => {
                         self.config.jellyfin.blacklist = Some(Blacklist {
-                            media_types: self.config.jellyfin.blacklist.clone().unwrap().media_types,
-                            libraries: Some(self.libraries.iter().filter(|library| !library.enabled).map(|library| library.name.to_owned()).collect())
+                            media_types: self
+                                .config
+                                .jellyfin
+                                .blacklist
+                                .clone()
+                                .unwrap()
+                                .media_types,
+                            libraries: Some(
+                                self.libraries
+                                    .iter()
+                                    .filter(|library| !library.enabled)
+                                    .map(|library| library.name.to_owned())
+                                    .collect(),
+                            ),
                         })
                     }
                     None => {
                         self.config.jellyfin.blacklist = Some(Blacklist {
                             media_types: None,
-                            libraries: Some(self.libraries.iter().filter(|library| !library.enabled).map(|library| library.name.to_owned()).collect())
+                            libraries: Some(
+                                self.libraries
+                                    .iter()
+                                    .filter(|library| !library.enabled)
+                                    .map(|library| library.name.to_owned())
+                                    .collect(),
+                            ),
                         })
                     }
                 };
@@ -716,9 +742,9 @@ impl Application for Gui {
                             .align_items(Alignment::Start),
                         |column: iced::widget::Column<'_, Message>, library| {
                             column.push(
-                                row![
-                                    checkbox(&library.name, library.enabled, |val| Message::ToggleLibrary(library.to_owned(), val)),
-                                ]
+                                row![checkbox(&library.name, library.enabled, |val| {
+                                    Message::ToggleLibrary(library.to_owned(), val)
+                                }),]
                                 .spacing(3)
                                 .align_items(Alignment::Center),
                             )
@@ -865,7 +891,7 @@ async fn get_libraries(url: String, api_key: String) -> Result<Vec<String>, reqw
         ))
         .await?
         .text()
-        .await?
+        .await?,
     )
     .unwrap();
 
