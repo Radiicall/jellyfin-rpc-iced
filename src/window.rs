@@ -713,7 +713,7 @@ impl Application for Gui {
                             },
                         ),
                         Username::String(username) => column![
-                            text("Libraries:"),
+                            text("Usernames:"),
                             row![
                                 button("X").on_press(Message::RemoveUsername(username.to_string())),
                                 text(username),
