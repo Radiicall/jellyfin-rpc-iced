@@ -21,6 +21,7 @@ pub enum Message {
     Update,
     UpdateUrl(String),
     UpdateApiKey(String),
+    UpdateApplicationId(String),
     ToggleMediaType(MediaType, bool),
     ToggleCustomButtons(bool),
     UpdateButtonOneName(String),
@@ -68,6 +69,7 @@ pub struct Gui {
     tx: mpsc::Sender<Event>,
     libraries: Vec<Library>,
     config_path: String,
+    application_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -185,6 +187,7 @@ impl Application for Gui {
                 },
                 libraries: Vec::new(),
                 config_path: config_path.clone(),
+                application_id: config.discord.clone().and_then(|discord| discord.application_id).unwrap_or("1053747938519679018".to_string())
             },
             Command::perform(
                 server::run(config_path, config, args, tx_server, rx_server),
@@ -301,6 +304,10 @@ impl Application for Gui {
                 self.config.jellyfin.api_key = api_key;
                 Command::none()
             }
+            Message::UpdateApplicationId(application_id) => {
+                self.application_id = application_id;
+                Command::none()
+            }
             Message::ToggleMediaType(media_type, val) => {
                 self.media_type_toggle(val, media_type);
                 Command::none()
@@ -398,10 +405,10 @@ impl Application for Gui {
                 Command::none()
             }
             Message::SaveSettings => {
-                if self.config.discord.is_some() {
-                    let mut discord = self.config.discord.clone().unwrap();
+                if let Some(mut discord) = self.config.discord.clone() {
                     discord.buttons =
                         Some(vec![self.buttons.one.clone(), self.buttons.two.clone()]);
+                    discord.application_id = Some(self.application_id.clone());
                     self.config.discord = Some(discord);
                 } else {
                     self.config.discord = Some(Discord {
@@ -556,9 +563,15 @@ impl Application for Gui {
                     .spacing(3)
                     .align_items(Alignment::Center);
 
+                    let application_id = row![
+                        text("Application ID:"),
+                        text_input("1053747938519679018", &self.application_id)
+                            .on_input(Message::UpdateApplicationId)
+                    ];
+
                     let save = button("Save").on_press(Message::SaveSettings).padding(10);
 
-                    column![menu_buttons, reload_config, url, api_key, save, status]
+                    column![menu_buttons, reload_config, url, api_key, application_id, save, status]
                         .spacing(10)
                         .align_items(Alignment::Center)
                 }

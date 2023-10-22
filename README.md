@@ -18,7 +18,7 @@ It's very much WIP but should work just fine.
     - [ ] What to display
     - [ ] Separator
   - [x] Change buttons
-  - [ ] Change application ID
+  - [x] Change application ID
   - [x] Enable/Disable images
     - [x] Enable/Disable imgur images
       - [x] Toggle
