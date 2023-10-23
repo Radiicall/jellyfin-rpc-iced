@@ -24,10 +24,8 @@ pub enum Message {
     UpdateApplicationId(String),
     ToggleMediaType(MediaType, bool),
     ToggleCustomButtons(bool),
-    UpdateButtonOneName(String),
-    UpdateButtonOneUrl(String),
-    UpdateButtonTwoName(String),
-    UpdateButtonTwoUrl(String),
+    UpdateButtonName(u8, String),
+    UpdateButtonUrl(u8, String),
     UpdateNewUsername(String),
     AddUsername,
     RemoveUsername(String),
@@ -89,7 +87,7 @@ impl Gui {
             MediaType::AudioBook => self.whitelist_media_types.audiobooks = val,
             MediaType::None => (),
         }
-    
+
         if val {
             self.config
                 .jellyfin
@@ -105,7 +103,8 @@ impl Gui {
                 Some(blacklist) => match blacklist.media_types {
                     Some(mut media_types) => {
                         media_types.push(media_type);
-                        self.config.jellyfin.blacklist.as_mut().unwrap().media_types = Some(media_types);
+                        self.config.jellyfin.blacklist.as_mut().unwrap().media_types =
+                            Some(media_types);
                     }
                     None => {
                         self.config.jellyfin.blacklist.as_mut().unwrap().media_types =
@@ -187,10 +186,20 @@ impl Application for Gui {
                 },
                 libraries: Vec::new(),
                 config_path: config_path.clone(),
-                application_id: config.discord.clone().and_then(|discord| discord.application_id).unwrap_or("1053747938519679018".to_string())
+                application_id: config
+                    .discord
+                    .clone()
+                    .and_then(|discord| discord.application_id)
+                    .unwrap_or("1053747938519679018".to_string()),
             },
             Command::perform(
-                server::run(config_path, config, args, tx_server, rx_server),
+                server::run(
+                    config_path,
+                    config,
+                    args.image_urls.clone(),
+                    tx_server,
+                    rx_server,
+                ),
                 |_| Message::Open(Panel::Main),
             ),
         )
@@ -316,20 +325,22 @@ impl Application for Gui {
                 self.custom_buttons = val;
                 Command::none()
             }
-            Message::UpdateButtonOneName(name) => {
-                self.buttons.one.name = name;
+            Message::UpdateButtonName(num, name) => {
+                if num == 1 {
+                    self.buttons.one.name = name;
+                } else {
+                    self.buttons.two.name = name;
+                }
+
                 Command::none()
             }
-            Message::UpdateButtonOneUrl(url) => {
-                self.buttons.one.url = url;
-                Command::none()
-            }
-            Message::UpdateButtonTwoName(name) => {
-                self.buttons.two.name = name;
-                Command::none()
-            }
-            Message::UpdateButtonTwoUrl(url) => {
-                self.buttons.two.url = url;
+            Message::UpdateButtonUrl(num, url) => {
+                if num == 1 {
+                    self.buttons.one.url = url;
+                } else {
+                    self.buttons.two.url = url;
+                }
+
                 Command::none()
             }
             Message::UpdateNewUsername(username) => {
@@ -571,9 +582,17 @@ impl Application for Gui {
 
                     let save = button("Save").on_press(Message::SaveSettings).padding(10);
 
-                    column![menu_buttons, reload_config, url, api_key, application_id, save, status]
-                        .spacing(10)
-                        .align_items(Alignment::Center)
+                    column![
+                        menu_buttons,
+                        reload_config,
+                        url,
+                        api_key,
+                        application_id,
+                        save,
+                        status
+                    ]
+                    .spacing(10)
+                    .align_items(Alignment::Center)
                 }
                 Setting::MediaTypes => {
                     let back: iced::widget::Row<'_, Message> = row![button("< Back")
@@ -583,36 +602,24 @@ impl Application for Gui {
                     .align_items(Alignment::Center);
 
                     let mediatypes = column![
-                        checkbox(
-                            "Movies",
-                            self.whitelist_media_types.movies,
-                            |val| Message::ToggleMediaType(MediaType::Movie, val)
-                        ),
-                        checkbox(
-                            "Episodes",
-                            self.whitelist_media_types.episodes,
-                            |val| Message::ToggleMediaType(MediaType::Episode, val)
-                        ),
-                        checkbox(
-                            "Television",
-                            self.whitelist_media_types.livetv,
-                            |val| Message::ToggleMediaType(MediaType::LiveTv, val)
-                        ),
-                        checkbox(
-                            "Music",
-                            self.whitelist_media_types.music,
-                            |val| Message::ToggleMediaType(MediaType::Music, val)
-                        ),
-                        checkbox(
-                            "Books",
-                            self.whitelist_media_types.books,
-                            |val| Message::ToggleMediaType(MediaType::Book, val)
-                        ),
-                        checkbox(
-                            "AudioBooks",
-                            self.whitelist_media_types.audiobooks,
-                            |val| Message::ToggleMediaType(MediaType::AudioBook, val)
-                        ),
+                        checkbox("Movies", self.whitelist_media_types.movies, |val| {
+                            Message::ToggleMediaType(MediaType::Movie, val)
+                        }),
+                        checkbox("Episodes", self.whitelist_media_types.episodes, |val| {
+                            Message::ToggleMediaType(MediaType::Episode, val)
+                        }),
+                        checkbox("Television", self.whitelist_media_types.livetv, |val| {
+                            Message::ToggleMediaType(MediaType::LiveTv, val)
+                        }),
+                        checkbox("Music", self.whitelist_media_types.music, |val| {
+                            Message::ToggleMediaType(MediaType::Music, val)
+                        }),
+                        checkbox("Books", self.whitelist_media_types.books, |val| {
+                            Message::ToggleMediaType(MediaType::Book, val)
+                        }),
+                        checkbox("AudioBooks", self.whitelist_media_types.audiobooks, |val| {
+                            Message::ToggleMediaType(MediaType::AudioBook, val)
+                        }),
                     ]
                     .spacing(6)
                     .align_items(Alignment::Start);
@@ -643,13 +650,13 @@ impl Application for Gui {
                                     row![
                                         text("Name: "),
                                         text_input("My cool website", &self.buttons.one.name)
-                                            .on_input(Message::UpdateButtonOneName)
+                                            .on_input(|name| Message::UpdateButtonName(1, name))
                                     ]
                                     .align_items(Alignment::Center),
                                     row![
                                         text("URL: "),
                                         text_input("https://example.com", &self.buttons.one.url)
-                                            .on_input(Message::UpdateButtonOneUrl)
+                                            .on_input(|url| Message::UpdateButtonUrl(1, url))
                                     ]
                                     .align_items(Alignment::Center)
                                 ]
@@ -659,13 +666,13 @@ impl Application for Gui {
                                     row![
                                         text("Name: "),
                                         text_input("My 2nd cool website", &self.buttons.two.name)
-                                            .on_input(Message::UpdateButtonTwoName)
+                                            .on_input(|name| Message::UpdateButtonName(2, name))
                                     ]
                                     .align_items(Alignment::Center),
                                     row![
                                         text("URL: "),
                                         text_input("https://example.org", &self.buttons.two.url)
-                                            .on_input(Message::UpdateButtonTwoUrl)
+                                            .on_input(|url| Message::UpdateButtonUrl(2, url))
                                     ]
                                     .align_items(Alignment::Center)
                                 ]
@@ -702,10 +709,10 @@ impl Application for Gui {
                             |column: iced::widget::Column<'_, Message>, username| {
                                 column.push(
                                     row![
-                                        text(username),
                                         button("X").on_press(Message::RemoveUsername(
                                             username.to_string()
-                                        ))
+                                        )),
+                                        text(username),
                                     ]
                                     .spacing(3)
                                     .align_items(Alignment::Center),
@@ -873,17 +880,14 @@ pub struct ImageOptions {
 }
 
 async fn get_libraries(url: String, api_key: String) -> Result<Vec<String>, reqwest::Error> {
-    let media_folders: Value = serde_json::from_str(
-        &reqwest::get(format!(
-            "{}/Library/MediaFolders?api_key={}",
-            url.trim_end_matches('/'),
-            api_key
-        ))
-        .await?
-        .text()
-        .await?,
-    )
-    .unwrap();
+    let media_folders: Value = reqwest::get(format!(
+        "{}/Library/MediaFolders?api_key={}",
+        url.trim_end_matches('/'),
+        api_key
+    ))
+    .await?
+    .json()
+    .await?;
 
     let items: Vec<Value> = media_folders["Items"].as_array().unwrap().to_vec();
 

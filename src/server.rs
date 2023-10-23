@@ -1,4 +1,4 @@
-use crate::{Args, VERSION};
+use crate::VERSION;
 use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use jellyfin_rpc::{
     self,
@@ -13,7 +13,7 @@ use std::sync::mpsc;
 pub async fn run(
     config_path: String,
     mut config: Config,
-    args: Args,
+    image_urls: Option<String>,
     tx: mpsc::Sender<Event>,
     rx: mpsc::Receiver<Event>,
 ) {
@@ -165,7 +165,7 @@ pub async fn run(
                             .imgur
                             .and_then(|imgur| imgur.client_id)
                             .expect("Imgur client ID cant be loaded."),
-                        args.image_urls.clone(),
+                        image_urls.clone(),
                     )
                     .await
                     .unwrap_or_else(|e| {
