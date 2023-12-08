@@ -1305,6 +1305,7 @@ checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
 [[package]]
 name = "jellyfin-rpc"
 version = "0.1.6"
+source = "git+https://github.com/radiicall/jellyfin-rpc.git?branch=multithread-test#2ce426e69c30afb66a8ef7e98d6e6b93c7ecbd47"
 dependencies = [
  "async-recursion",
  "discord-rich-presence",

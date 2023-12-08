@@ -18,7 +18,7 @@ features = ["imgur"]
 #version  = "0.1.5"
 git      = "https://github.com/radiicall/jellyfin-rpc.git"
 branch   = "multithread-test"
-path     = "../jellyfin-rpc/jellyfin-rpc"
+#path     = "../jellyfin-rpc/jellyfin-rpc"
 
 [dependencies.clap]
 features = ["derive"]
