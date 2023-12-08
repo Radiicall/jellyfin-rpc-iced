@@ -1304,8 +1304,7 @@ checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
 
 [[package]]
 name = "jellyfin-rpc"
-version = "0.1.1"
-source = "git+https://github.com/radiicall/jellyfin-rpc.git#59baa7890166d4be9ba6c711a0874e356762b681"
+version = "0.1.6"
 dependencies = [
  "async-recursion",
  "discord-rich-presence",
@@ -1313,6 +1312,7 @@ dependencies = [
  "retry",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1324,7 +1324,6 @@ dependencies = [
  "iced",
  "jellyfin-rpc",
  "reqwest",
- "retry",
  "serde",
  "serde_json",
  "tokio",

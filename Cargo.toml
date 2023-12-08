@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 discord-rich-presence = "0.2"
-retry                 = "2.0"
 serde_json            = "1.0"
 
 [dependencies.iced]
@@ -16,7 +15,10 @@ version  = "0.10"
 
 [dependencies.jellyfin-rpc]
 features = ["imgur"]
-git = "https://github.com/radiicall/jellyfin-rpc.git"
+#version  = "0.1.5"
+git      = "https://github.com/radiicall/jellyfin-rpc.git"
+branch   = "multithread-test"
+path     = "../jellyfin-rpc/jellyfin-rpc"
 
 [dependencies.clap]
 features = ["derive"]

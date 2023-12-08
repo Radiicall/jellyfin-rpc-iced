@@ -1,14 +1,17 @@
-use crate::server::{self, Event};
+use crate::server;
 use crate::Args;
 use clap::Parser;
 use iced::widget::{button, checkbox, column, container, row, text, text_input};
 use iced::{executor, Alignment, Length};
 use iced::{Application, Command, Element, Theme};
-use jellyfin_rpc::core::config::{
-    get_config_path, Blacklist, Config, Discord, Images, Imgur, Username,
+use jellyfin_rpc::prelude::{
+    Command as RpcCommand,
+    config::{
+        get_config_path, Blacklist, Config, Discord, Images, Imgur, Username,
+    }
 };
-use jellyfin_rpc::jellyfin::MediaType;
-use jellyfin_rpc::Button;
+use jellyfin_rpc::services::jellyfin::MediaType;
+use jellyfin_rpc::prelude::{Event, config::Button};
 use serde_json::Value;
 use std::sync::mpsc;
 
@@ -64,7 +67,7 @@ pub struct Gui {
     image_options: ImageOptions,
     new_username: String,
     rx: mpsc::Receiver<Event>,
-    tx: mpsc::Sender<Event>,
+    tx: mpsc::Sender<RpcCommand>,
     libraries: Vec<Library>,
     config_path: String,
     application_id: String,
@@ -219,21 +222,21 @@ impl Application for Gui {
                     Err(_) => self.config = Config::default(),
                 }
                 self.whitelist_media_types.update(&self.config);
-                let _ = self.tx.send(Event::ReloadConfig);
+                let _ = self.tx.send(RpcCommand::ReloadConfig);
                 Command::none()
             }
-            Message::Start => match self.tx.send(Event::Start) {
+            Message::Start => match self.tx.send(RpcCommand::Start) {
                 Ok(()) => Command::none(),
                 Err(_) => Command::none(),
             },
-            Message::Stop => match self.tx.send(Event::Stop) {
+            Message::Stop => match self.tx.send(RpcCommand::Stop) {
                 Ok(()) => Command::none(),
                 Err(_) => Command::none(),
             },
             Message::Update => {
                 match self.rx.try_recv() {
-                    Ok(Event::Status(status)) => self.status = status,
-                    Ok(Event::Error(error)) => self.error = error,
+                    Ok(Event::Information(status, _)) => self.status = status,
+                    Ok(Event::Error(data, error)) => self.error = error,
                     Ok(_) => (),
                     Err(_) => (),
                 }
@@ -475,7 +478,7 @@ impl Application for Gui {
                     serde_json::to_string_pretty(&self.config).unwrap(),
                 ) {
                     Ok(()) => {
-                        self.tx.send(Event::ReloadConfig).ok();
+                        self.tx.send(RpcCommand::ReloadConfig).ok();
                     }
                     Err(err) => self.error = format!("{:?}", err),
                 }
@@ -569,6 +572,7 @@ impl Application for Gui {
                     let api_key = row![
                         text("Api Key:"),
                         text_input("aaaabbbbcccc111122223333", &self.config.jellyfin.api_key)
+                            .password()
                             .on_input(Message::UpdateApiKey),
                     ]
                     .spacing(3)
