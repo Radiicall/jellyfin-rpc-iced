@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use iced::{Application, Settings};
 mod server;
 mod window;
